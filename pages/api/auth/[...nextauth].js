@@ -11,6 +11,7 @@ export default NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async session({ session, token }) {
+      // Make email available in session
       session.user.email = token.email;
       return session;
     },
