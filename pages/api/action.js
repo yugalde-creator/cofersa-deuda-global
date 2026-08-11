@@ -86,7 +86,7 @@ export default async function handler(req, res) {
         result = await editarUsuario(email, args[0], args[1]);
         break;
       default:
-        return res.status(400).json({ error: `AcciÃ³n desconocida: ${action}` });
+        return res.status(400).json({ error: `Acción desconocida: ${action}` });
     }
     return res.status(200).json({ success: true, data: result });
   } catch (err) {
