@@ -347,10 +347,12 @@ function renderContent(){
 
 /* ================= DASHBOARD ================= */
 function computeKPIs(){
-  const dispuestoUSD = lines.reduce((s,l)=>s+toUSD(lineaSaldoActual(l),l.moneda),0);
+  const linesUSD = lines.reduce((s,l)=>s+toUSD(lineaSaldoActual(l),l.moneda),0);
+  const leasingUSD = leasingContratos.reduce((s,l)=>s+toUSD(leasingSaldoActual(l),l.moneda),0);
+  const dispuestoUSD = linesUSD + leasingUSD;
   const bankRows = bankExposureRows();
   const disponibleUSD = bankRows.reduce((s,r)=>s+r.disponibleUSD,0);
-  const tasaPonderada = lines.reduce((s,l)=>s+l.tasa*toUSD(lineaSaldoActual(l),l.moneda),0) / (dispuestoUSD||1);
+  const tasaPonderada = lines.reduce((s,l)=>s+l.tasa*toUSD(lineaSaldoActual(l),l.moneda),0) / (linesUSD||1);
   const proximos = lines.filter(l=>lineaSaldoActual(l)>0 && daysUntil(lineaProximoPago(l))!==null && daysUntil(lineaProximoPago(l))>=0).sort((a,b)=>daysUntil(lineaProximoPago(a))-daysUntil(lineaProximoPago(b)));
   const prox = proximos[0];
   return { dispuestoUSD, disponibleUSD, tasaPonderada, prox };
@@ -372,6 +374,12 @@ function bankExposureRows(){
   lines.forEach(l=>{
     if(!map[l.banco]) map[l.banco]={dispuestoUSD:0};
     map[l.banco].dispuestoUSD += toUSD(lineaSaldoActual(l),l.moneda);
+  });
+  leasingContratos.forEach(l=>{
+    const saldo = leasingSaldoActual(l);
+    if(saldo<=0) return;
+    if(!map[l.banco]) map[l.banco]={dispuestoUSD:0};
+    map[l.banco].dispuestoUSD += toUSD(saldo,l.moneda);
   });
   Object.keys(bankLimits).forEach(b=>{ if(!map[b]) map[b]={dispuestoUSD:0}; });
   return Object.entries(map).map(([banco,v])=>{
@@ -460,6 +468,13 @@ function distribucionPorMonedaHtml(){
   lines.forEach(l=>{
     if(!map[l.banco]) map[l.banco] = {crcUSD:0, usdUSD:0};
     const usdEq = toUSD(lineaSaldoActual(l), l.moneda);
+    if(l.moneda==='CRC') map[l.banco].crcUSD += usdEq; else map[l.banco].usdUSD += usdEq;
+  });
+  leasingContratos.forEach(l=>{
+    const saldo = leasingSaldoActual(l);
+    if(saldo<=0) return;
+    if(!map[l.banco]) map[l.banco] = {crcUSD:0, usdUSD:0};
+    const usdEq = toUSD(saldo, l.moneda);
     if(l.moneda==='CRC') map[l.banco].crcUSD += usdEq; else map[l.banco].usdUSD += usdEq;
   });
   const rows = Object.entries(map).map(([banco,v])=>({banco, crcUSD:v.crcUSD, usdUSD:v.usdUSD, totalUSD:v.crcUSD+v.usdUSD}));
@@ -836,7 +851,7 @@ function proyeccionesHtml(){
                                                                             </div>`;
                                                                             }
                                                                             function tendenciaDeudaPeriods(gran){ const periods = []; const now = new Date(); now.setHours(0,0,0,0); if(gran==='anio'){ const curYear = now.getFullYear(); for(let y=curYear-4; y<=curYear; y++){ const start = new Date(y,0,1); const end = (y===curYear) ? now : new Date(y,11,31); periods.push({ label: String(y), start, end }); } } else { const base = new Date(now.getFullYear(), now.getMonth(), 1); for(let i=11;i>=0;i--){ const d = new Date(base.getFullYear(), base.getMonth()-i, 1); const end = new Date(d.getFullYear(), d.getMonth()+1, 0); periods.push({ label: end.toISOString().slice(0,7), start: d, end }); } } return periods; }
-                                                                            function tendenciaDeudaRows(gran){ const now = new Date(); now.setHours(0,0,0,0); const curPeriodo = now.toISOString().slice(0,7); const periods = tendenciaDeudaPeriods(gran||'mes'); return periods.map(p=>{ if(gran!=='anio' && historicoDeuda[p.label] && p.label < curPeriodo){ return { periodo: p.label, totalUSD: historicoDeuda[p.label], esReal: true }; } const cutoff = new Date(p.end); let totalUSD = 0; lines.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const plan = paymentPlans[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.aprobado||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); lineasCanceladas.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); const fin = new Date(l.vencimiento+'T00:00:00'); if(inicio > cutoff) return; if(fin <= cutoff) return; const pagadoHasta = history.filter(h=>h.linea===l.id && new Date(h.fecha+'T00:00:00') <= cutoff).reduce((s,h)=>s+h.monto,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); return { periodo: p.label, totalUSD, esReal: false }; }); }
+                                                                            function tendenciaDeudaRows(gran){ const now = new Date(); now.setHours(0,0,0,0); const curPeriodo = now.toISOString().slice(0,7); const periods = tendenciaDeudaPeriods(gran||'mes'); return periods.map(p=>{ if(gran!=='anio' && historicoDeuda[p.label] && p.label < curPeriodo){ return { periodo: p.label, totalUSD: historicoDeuda[p.label], esReal: true }; } const cutoff = new Date(p.end); let totalUSD = 0; lines.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const plan = paymentPlans[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.aprobado||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); lineasCanceladas.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); const fin = new Date(l.vencimiento+'T00:00:00'); if(inicio > cutoff) return; if(fin <= cutoff) return; const pagadoHasta = history.filter(h=>h.linea===l.id && new Date(h.fecha+'T00:00:00') <= cutoff).reduce((s,h)=>s+h.monto,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); leasingContratos.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const fin = new Date(l.vencimiento+'T00:00:00'); if(fin <= cutoff) return; const plan = leasingPagos[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); return { periodo: p.label, totalUSD, esReal: false }; }); }
                                                                             function tendenciaDeudaHtml(){
                                                                                                                                                                                                           const gran = state.deudaGranularidad || 'mes';
                                                                                                                                                                                                             const rows = tendenciaDeudaRows(gran);
