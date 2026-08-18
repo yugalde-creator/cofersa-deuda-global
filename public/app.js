@@ -375,12 +375,6 @@ function bankExposureRows(){
     if(!map[l.banco]) map[l.banco]={dispuestoUSD:0};
     map[l.banco].dispuestoUSD += toUSD(lineaSaldoActual(l),l.moneda);
   });
-  leasingContratos.forEach(l=>{
-    const saldo = leasingSaldoActual(l);
-    if(saldo<=0) return;
-    if(!map[l.banco]) map[l.banco]={dispuestoUSD:0};
-    map[l.banco].dispuestoUSD += toUSD(saldo,l.moneda);
-  });
   Object.keys(bankLimits).forEach(b=>{ if(!map[b]) map[b]={dispuestoUSD:0}; });
   return Object.entries(map).map(([banco,v])=>{
     const limiteUSD = bankLimits[banco] ?? v.dispuestoUSD;
@@ -414,10 +408,12 @@ function upcomingEvents(){
 }
 function saldosPorBancoHtml(){
   const rows = bankExposureRows();
+  const leasingTotalUSD = leasingContratos.reduce((s,l)=>{ const sal=leasingSaldoActual(l); return sal>0?s+toUSD(sal,l.moneda):s; },0);
   const totalAprobado = rows.reduce((s,r)=>s+r.aprobadoUSD,0);
-  const totalDispuesto = rows.reduce((s,r)=>s+r.dispuestoUSD,0);
+  const totalDispuesto = rows.reduce((s,r)=>s+r.dispuestoUSD,0) + leasingTotalUSD;
   const totalDisponible = rows.reduce((s,r)=>s+r.disponibleUSD,0);
   const totalUtil = totalAprobado ? Math.round(totalDispuesto/totalAprobado*100) : 0;
+  const leasingRow = leasingTotalUSD>0 ? `<tr style="opacity:0.85;"><td><b>🏷 Leasing</b></td><td class="text-right mono">${fmtUSD(leasingTotalUSD)}</td><td class="text-right mono text-muted">—</td><td class="text-right mono text-muted">—</td><td><span class="text-muted">—</span></td></tr>` : '';
   return `
     <div class="table-card">
       <div class="panel-header-dark">${ic('bank')}<span>Saldos y Límites por Banco (${state.currency})</span></div>
@@ -425,6 +421,7 @@ function saldosPorBancoHtml(){
         <table><thead><tr><th>Banco</th><th class="text-right">Saldo</th><th class="text-right">Límite</th><th class="text-right">Disponible</th><th>% Uso</th></tr></thead>
         <tbody>
           ${rows.map(r=>`<tr><td><b>${r.banco}</b></td><td class="text-right mono">${fmtUSD(r.dispuestoUSD)}</td><td class="text-right mono">${fmtUSD(r.aprobadoUSD)}</td><td class="text-right mono" style="color:var(--green);font-weight:700;">${fmtUSD(r.disponibleUSD)}</td><td><span class="progress-bar-track"><span class="progress-bar-fill" style="width:${r.util}%"></span></span><span class="text-muted">${r.util}%</span></td></tr>`).join('')}
+          ${leasingRow}
           <tr class="total-row"><td>TOTAL</td><td class="text-right mono">${fmtUSD(totalDispuesto)}</td><td class="text-right mono">${fmtUSD(totalAprobado)}</td><td class="text-right mono">${fmtUSD(totalDisponible)}</td><td>${totalUtil}%</td></tr>
         </tbody></table>
       </div>
@@ -470,16 +467,11 @@ function distribucionPorMonedaHtml(){
     const usdEq = toUSD(lineaSaldoActual(l), l.moneda);
     if(l.moneda==='CRC') map[l.banco].crcUSD += usdEq; else map[l.banco].usdUSD += usdEq;
   });
-  leasingContratos.forEach(l=>{
-    const saldo = leasingSaldoActual(l);
-    if(saldo<=0) return;
-    if(!map[l.banco]) map[l.banco] = {crcUSD:0, usdUSD:0};
-    const usdEq = toUSD(saldo, l.moneda);
-    if(l.moneda==='CRC') map[l.banco].crcUSD += usdEq; else map[l.banco].usdUSD += usdEq;
-  });
+  const leasingCRC = leasingContratos.reduce((s,l)=>{ const sal=leasingSaldoActual(l); return (sal>0&&l.moneda==='CRC')?s+toUSD(sal,l.moneda):s; },0);
+  const leasingUSDv = leasingContratos.reduce((s,l)=>{ const sal=leasingSaldoActual(l); return (sal>0&&l.moneda!=='CRC')?s+toUSD(sal,l.moneda):s; },0);
   const rows = Object.entries(map).map(([banco,v])=>({banco, crcUSD:v.crcUSD, usdUSD:v.usdUSD, totalUSD:v.crcUSD+v.usdUSD}));
-  const totalCRC = rows.reduce((s,r)=>s+r.crcUSD,0);
-  const totalUSDv = rows.reduce((s,r)=>s+r.usdUSD,0);
+  const totalCRC = rows.reduce((s,r)=>s+r.crcUSD,0) + leasingCRC;
+  const totalUSDv = rows.reduce((s,r)=>s+r.usdUSD,0) + leasingUSDv;
   const colCRC = state.currency==='USD' ? 'Saldo CRC (USD)' : 'Saldo CRC';
   const colUSD = state.currency==='USD' ? 'Saldo USD' : 'Saldo USD (₡)';
   return `
@@ -489,6 +481,7 @@ function distribucionPorMonedaHtml(){
         <table><thead><tr><th>Banco</th><th class="text-right">${colCRC}</th><th class="text-right">${colUSD}</th><th class="text-right">Total ${state.currency}</th></tr></thead>
         <tbody>
           ${rows.map(r=>`<tr><td><b>${r.banco}</b></td><td class="text-right mono">${fmtUSD(r.crcUSD)}</td><td class="text-right mono">${fmtUSD(r.usdUSD)}</td><td class="text-right mono"><b>${fmtUSD(r.totalUSD)}</b></td></tr>`).join('')}
+          ${(leasingCRC+leasingUSDv)>0?`<tr style="opacity:0.85;"><td><b>🏷 Leasing</b></td><td class="text-right mono">${fmtUSD(leasingCRC)}</td><td class="text-right mono">${fmtUSD(leasingUSDv)}</td><td class="text-right mono"><b>${fmtUSD(leasingCRC+leasingUSDv)}</b></td></tr>`:''}
           <tr class="total-row"><td>TOTAL</td><td class="text-right mono">${fmtUSD(totalCRC)}</td><td class="text-right mono">${fmtUSD(totalUSDv)}</td><td class="text-right mono">${fmtUSD(totalCRC+totalUSDv)}</td></tr>
         </tbody></table>
       </div>
