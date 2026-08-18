@@ -416,7 +416,7 @@ function saldosPorBancoHtml(){
   return `
     <div class="table-card">
       <div class="panel-header-dark">${ic('bank')}<span>Saldos y Límites por Banco (${state.currency})</span></div>
-      <div class="table-scroll" style="max-height:380px;">
+      <div class="table-scroll">
         <table><thead><tr><th>Banco</th><th class="text-right">Saldo</th><th class="text-right">Límite</th><th class="text-right">Disponible</th><th>% Uso</th></tr></thead>
         <tbody>
           ${rows.map(r=>`<tr><td><b>${r.banco}</b></td><td class="text-right mono">${fmtUSD(r.dispuestoUSD)}</td><td class="text-right mono">${fmtUSD(r.aprobadoUSD)}</td><td class="text-right mono" style="color:var(--green);font-weight:700;">${fmtUSD(r.disponibleUSD)}</td><td><span class="progress-bar-track"><span class="progress-bar-fill" style="width:${r.util}%"></span></span><span class="text-muted">${r.util}%</span></td></tr>`).join('')}
@@ -450,7 +450,7 @@ function tendenciaTasasPorBancoHtml(){
   return `
     <div class="table-card">
       <div class="panel-header-dark">${ic('percent')}<span>Tendencia de Tasas por Banco</span><div class="spacer"></div><span style="text-transform:none;font-weight:600;opacity:.8;">Prom. últimos 6 meses vs. anteriores</span></div>
-      <div class="table-scroll" style="max-height:380px;">
+      <div class="table-scroll">
         <table><thead><tr><th>Banco</th><th class="text-right">Tasa Mín.</th><th class="text-right">Prom. 6 meses</th><th class="text-right">Tasa Máx.</th><th>Tendencia</th></tr></thead>
         <tbody>
           ${rows.map(r=>`<tr><td><b>${r.banco}</b></td><td class="text-right mono">${r.min.toFixed(2)}%</td><td class="text-right mono"><b>${r.ref!=null?r.ref.toFixed(2)+'%':'—'}</b></td><td class="text-right mono">${r.max.toFixed(2)}%</td><td><span class="badge ${r.tendClass}">${r.tendIcon} ${r.tendLabel}</span></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty-state">Sin líneas activas.</div></td></tr>'}
@@ -476,7 +476,7 @@ function distribucionPorMonedaHtml(){
   return `
     <div class="table-card">
       <div class="panel-header-dark">${ic('dashboard')}<span>Distribución por Moneda</span></div>
-      <div class="table-scroll" style="max-height:380px;">
+      <div class="table-scroll">
         <table><thead><tr><th>Banco</th><th class="text-right">${colCRC}</th><th class="text-right">${colUSD}</th><th class="text-right">Total ${state.currency}</th></tr></thead>
         <tbody>
           ${rows.map(r=>`<tr><td><b>${r.banco}</b></td><td class="text-right mono">${fmtUSD(r.crcUSD)}</td><td class="text-right mono">${fmtUSD(r.usdUSD)}</td><td class="text-right mono"><b>${fmtUSD(r.totalUSD)}</b></td></tr>`).join('')}
@@ -1049,24 +1049,75 @@ function interesesLoadingHtml(){
   </div>`;
 }
 
-async function loadIntereses(){
+async function loadIntereses(anio, mes){
+  const c = document.getElementById('content');
+  if(!c || state.activeModule!=='intereses') return;
+  c.innerHTML = interesesLoadingHtml();
   try {
-    const r = await fetch('/api/intereses');
+    let url = '/api/intereses';
+    if(anio && mes) url += '?anio='+anio+'&mes='+mes;
+    const r = await fetch(url);
     const d = await r.json();
     if(!d.ok) throw new Error(d.error);
     _interesesData = d;
-    const c = document.getElementById('content');
     if(c && state.activeModule==='intereses') c.innerHTML = interesesHtml(d);
+    bindInteresesEvents();
   } catch(e) {
-    const c = document.getElementById('content');
     if(c) c.innerHTML = '<div class="table-card" style="padding:24px;"><b style="color:var(--red);">Error al calcular intereses: </b>' + e.message + '</div>';
   }
+}
+function bindInteresesEvents(){
+  const sel = document.getElementById('intMesSel');
+  if(sel) sel.addEventListener('change', function(){
+    const [a,m] = this.value.split('-');
+    loadIntereses(parseInt(a), parseInt(m));
+  });
+  const btn = document.getElementById('intExportBtn');
+  if(btn) btn.addEventListener('click', exportarReporteIntereses);
+}
+function exportarReporteIntereses(){
+  if(!_interesesData) return;
+  const d = _interesesData;
+  const pAnt = d.periodos.causado.label;
+  const pSig = d.periodos.proyeccion.label;
+  let csv = 'REPORTE APARTADO DE INTERESES\n';
+  csv += 'Causado: ' + pAnt + ' | Proyeccion: ' + pSig + '\n\n';
+  csv += 'CAUSADO\nBanco,N° Operacion,Moneda,Capital,Tasa,Desde,Hasta,Dias,Interes\n';
+  d.causado.forEach(function(f){ csv += [f.banco,f.op,f.moneda,f.capital,(f.tasa*100).toFixed(2)+'%',f.desde,f.hasta,f.dias,f.interes].join(',') + '\n'; });
+  csv += '\nEJECUTADO\nBanco,N° Operacion,Moneda,Fecha,Interes\n';
+  d.ejecutado.forEach(function(f){ csv += [f.banco,f.op,f.moneda,f.fecha,f.interes].join(',') + '\n'; });
+  csv += '\nPROYECCION\nBanco,N° Operacion,Moneda,Capital,Tasa,Desde,Hasta,Dias,Interes\n';
+  d.proyeccion.forEach(function(f){ csv += [f.banco,f.op,f.moneda,f.capital,(f.tasa*100).toFixed(2)+'%',f.desde,f.hasta,f.dias,f.interes].join(',') + '\n'; });
+  csv += '\nTOTALES\nConcepto,CRC,USD\n';
+  csv += 'Causado,' + d.totales.causado.crc + ',' + d.totales.causado.usd + '\n';
+  csv += 'Ejecutado,' + d.totales.ejecutado.crc + ',' + d.totales.ejecutado.usd + '\n';
+  csv += 'Proyeccion,' + d.totales.proyeccion.crc + ',' + d.totales.proyeccion.usd + '\n';
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Intereses_' + pAnt.replace(/ /g,'_') + '.csv';
+  a.click();
+  toast('Reporte exportado.');
+}
+
+function interesesMesesOpciones(selAnio, selMes){
+  var meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
+  var hoy = new Date(); var opts = '';
+  for(var i=11; i>=0; i--){
+    var d = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1);
+    var a = d.getFullYear(), m = d.getMonth()+1;
+    var val = a+'-'+m, lbl = meses[m-1]+' '+a;
+    var sel = (a===selAnio && m===selMes) ? ' selected' : '';
+    opts += '<option value="'+val+'"'+sel+'>'+lbl+'</option>';
+  }
+  return opts;
 }
 
 function interesesHtml(d){
   const {periodos, totales: tot, causado, ejecutado, proyeccion} = d;
   const pAnt = periodos.causado.label;
   const pSig = periodos.proyeccion.label;
+  const selAnio = periodos.causado.anio, selMes = periodos.causado.mes;
 
   function fmtNum(n, moneda){
     if(!n) return '—';
@@ -1076,6 +1127,16 @@ function interesesHtml(d){
   function pct(t){ return t > 1 ? (t*100).toFixed(2)+'%' : (t*100).toFixed(2)+'%'; }
 
   const diffSign = (tot.diferencia.crc >= 0 && tot.diferencia.usd >= 0) ? 'color:#C00000' : 'color:#375623';
+
+  // Toolbar con filtro de mes y botón reporte
+  const toolbar = '<div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">'
+    + '<label style="font-size:13px;font-weight:600;color:var(--text-secondary);">Período causado:</label>'
+    + '<select id="intMesSel" class="tb-select" style="min-width:160px;">'
+    + interesesMesesOpciones(selAnio, selMes)
+    + '</select>'
+    + '<div class="spacer"></div>'
+    + '<button id="intExportBtn" class="btn btn-primary">' + ic('download') + ' Exportar CSV</button>'
+    + '</div>';
 
   // KPIs
   const kpis = `<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
@@ -1157,7 +1218,7 @@ function interesesHtml(d){
   const tEjecutado  = tablaIntereses(ejecutado,  colsEjec,   `Ejecutado Real — ${pAnt}`,     '#375623');
   const tProyeccion = tablaIntereses(proyeccion, colsProy,   `Proyección Próximo Pago — ${pSig}`, '#C55A11');
 
-  return kpis + difNote + tCausado + tEjecutado + tProyeccion;
+  return toolbar + kpis + difNote + tCausado + tEjecutado + tProyeccion;
 }
 
 function moduleTitle(){
