@@ -416,7 +416,7 @@ function saldosPorBancoHtml(){
   return `
     <div class="table-card">
       <div class="panel-header-dark">${ic('bank')}<span>Saldos y Límites por Banco (${state.currency})</span></div>
-      <div class="table-scroll" style="max-height:260px;">
+      <div class="table-scroll" style="max-height:380px;">
         <table><thead><tr><th>Banco</th><th class="text-right">Saldo</th><th class="text-right">Límite</th><th class="text-right">Disponible</th><th>% Uso</th></tr></thead>
         <tbody>
           ${rows.map(r=>`<tr><td><b>${r.banco}</b></td><td class="text-right mono">${fmtUSD(r.dispuestoUSD)}</td><td class="text-right mono">${fmtUSD(r.aprobadoUSD)}</td><td class="text-right mono" style="color:var(--green);font-weight:700;">${fmtUSD(r.disponibleUSD)}</td><td><span class="progress-bar-track"><span class="progress-bar-fill" style="width:${r.util}%"></span></span><span class="text-muted">${r.util}%</span></td></tr>`).join('')}
@@ -450,7 +450,7 @@ function tendenciaTasasPorBancoHtml(){
   return `
     <div class="table-card">
       <div class="panel-header-dark">${ic('percent')}<span>Tendencia de Tasas por Banco</span><div class="spacer"></div><span style="text-transform:none;font-weight:600;opacity:.8;">Prom. últimos 6 meses vs. anteriores</span></div>
-      <div class="table-scroll" style="max-height:260px;">
+      <div class="table-scroll" style="max-height:380px;">
         <table><thead><tr><th>Banco</th><th class="text-right">Tasa Mín.</th><th class="text-right">Prom. 6 meses</th><th class="text-right">Tasa Máx.</th><th>Tendencia</th></tr></thead>
         <tbody>
           ${rows.map(r=>`<tr><td><b>${r.banco}</b></td><td class="text-right mono">${r.min.toFixed(2)}%</td><td class="text-right mono"><b>${r.ref!=null?r.ref.toFixed(2)+'%':'—'}</b></td><td class="text-right mono">${r.max.toFixed(2)}%</td><td><span class="badge ${r.tendClass}">${r.tendIcon} ${r.tendLabel}</span></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty-state">Sin líneas activas.</div></td></tr>'}
@@ -476,7 +476,7 @@ function distribucionPorMonedaHtml(){
   return `
     <div class="table-card">
       <div class="panel-header-dark">${ic('dashboard')}<span>Distribución por Moneda</span></div>
-      <div class="table-scroll" style="max-height:260px;">
+      <div class="table-scroll" style="max-height:380px;">
         <table><thead><tr><th>Banco</th><th class="text-right">${colCRC}</th><th class="text-right">${colUSD}</th><th class="text-right">Total ${state.currency}</th></tr></thead>
         <tbody>
           ${rows.map(r=>`<tr><td><b>${r.banco}</b></td><td class="text-right mono">${fmtUSD(r.crcUSD)}</td><td class="text-right mono">${fmtUSD(r.usdUSD)}</td><td class="text-right mono"><b>${fmtUSD(r.totalUSD)}</b></td></tr>`).join('')}
@@ -504,7 +504,7 @@ function indicadoresFinancierosHtml(){
   return `
     <div class="table-card">
       <div class="panel-header-dark">${ic('percent')}<span>Indicadores Financieros</span></div>
-      <div class="table-scroll" style="max-height:260px;">
+      <div class="table-scroll" style="max-height:380px;">
         <table class="kv-table"><tbody>
           ${rows.map(([k2,v])=>`<tr><td class="k">${k2}</td><td class="v">${v}</td></tr>`).join('')}
         </tbody></table>
@@ -519,7 +519,7 @@ function limitesLineasHtml(){
   return `
     <div class="table-card">
       <div class="panel-header-dark">${ic('wallet')}<span>Límites de Líneas Habilitadas</span></div>
-      <div class="table-scroll" style="max-height:260px;">
+      <div class="table-scroll" style="max-height:380px;">
         <table><thead><tr><th>Banco</th><th class="text-right">Límite</th><th class="text-right">Usado</th><th class="text-right">Disponible</th></tr></thead>
         <tbody>
           ${rows.map(r=>`<tr><td><b>${r.banco}</b></td><td class="text-right mono">${fmtUSD(r.aprobadoUSD)}</td><td class="text-right mono">${fmtUSD(r.dispuestoUSD)}</td><td class="text-right mono" style="color:var(--green);font-weight:700;">${fmtUSD(r.disponibleUSD)}</td></tr>`).join('')}
@@ -533,7 +533,7 @@ function pagosUltimoMesHtml(){
   return `
     <div class="table-card">
       <div class="panel-header-dark">${ic('cash')}<span>Pagos del Último Mes</span><div class="spacer"></div><span style="text-transform:none;font-weight:600;opacity:.8;">${pagos.length} pagos</span></div>
-      <div class="table-scroll" style="max-height:260px;">
+      <div class="table-scroll" style="max-height:380px;">
         <table><thead><tr><th>ID Pago</th><th>Línea</th><th>Banco</th><th>Fecha</th><th class="text-right">Monto</th><th>Estado</th></tr></thead>
         <tbody>${pagos.map(h=>{ const line=lines.find(l=>l.id===h.linea); const cur=line?line.moneda:'USD'; return `<tr><td><b>${h.id}</b></td><td>${line?.numOp||h.linea}</td><td>${h.banco}</td><td>${h.fecha}</td><td class="text-right mono">${fmtNative(h.monto,cur)}</td><td><span class="badge ${h.estado==='Conciliado'?'badge-green':'badge-amber'}">${h.estado}</span></td></tr>`; }).join('') || '<tr><td colspan="6"><div class="empty-state">Sin pagos en el último mes.</div></td></tr>'}</tbody></table>
       </div>
@@ -544,7 +544,7 @@ function amortizacionProximosHtml(){
   return `
     <div class="table-card">
       <div class="panel-header-dark">${ic('clock')}<span>Amortización y Vencimientos Próximos</span><div class="spacer"></div><span style="text-transform:none;font-weight:600;opacity:.8;">180 días</span></div>
-      <div class="table-scroll" style="max-height:260px;">
+      <div class="table-scroll" style="max-height:380px;">
         <table><thead><tr><th>Tipo</th><th>Línea</th><th>Banco</th><th>Fecha</th><th class="text-right">Monto</th><th>Días</th><th>Prioridad</th></tr></thead>
         <tbody>${eventos.map(e=>{ const cls = e.dias<7?'badge-red':(e.dias<30?'badge-amber':'badge-blue'); const label = e.dias<7?'Urgente':(e.dias<30?'Próximo':'Programado'); return `<tr><td>${e.tipo}</td><td><b>${e.linea}</b></td><td>${e.banco}</td><td>${e.fecha}</td><td class="text-right mono">${fmtUSD(e.montoUSD)}</td><td class="mono">${e.dias}</td><td><span class="badge ${cls}">${label}</span></td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty-state">Sin eventos próximos.</div></td></tr>'}</tbody></table>
       </div>
@@ -628,7 +628,7 @@ function opsHtml(){
                                                                                                                     <button class="btn" id="bulkUploadBtn" ${ro?'disabled title="Requiere rol Administrador"':''}>${ic('upload')} Carga masiva</button>
                                                                                                                               <button class="btn btn-primary" id="newPaymentBtn" ${ro?'disabled title="Requiere rol Administrador"':''}>${ic('plus')} Registrar Pago</button>
                                                                                                                                       </div>
-                                                                                                                                              <div class="table-scroll" style="max-height:260px;">
+                                                                                                                                              <div class="table-scroll" style="max-height:380px;">
                                                                                                                                                         <table>
                                                                                                                                                                     <thead><tr><th>Línea</th><th>Fecha</th><th class="text-right">Capital</th><th class="text-right">Interés</th><th>Estado</th></tr></thead>
                                                                                                                                                                                 <tbody>
@@ -711,7 +711,7 @@ function openNewLineScheduleModal(){
     scheduleData = calcularAmortizacion(monto, tasa, plazo, primerPago);
     scheduleData.banco = banco; scheduleData.numOp = numOp; scheduleData.monto = monto; scheduleData.moneda = moneda; scheduleData.tasa = tasa; scheduleData.plazo = plazo; scheduleData.desembolso = desembolso; scheduleData.primerPago = primerPago;
     const fls = scheduleData.filas || [];
-    document.getElementById('scheduleResult').innerHTML = `<div class="table-scroll" style="max-height:260px;"><table><thead><tr><th>Mes</th><th>Fecha</th><th class="text-right">Capital</th><th class="text-right">Interés</th><th class="text-right">Cuota</th><th class="text-right">Saldo</th></tr></thead><tbody>${fls.map((r,i)=>`<tr><td>${i+1}</td><td>${r.fecha}</td><td class="text-right mono">${fmtNative(r.capital,moneda)}</td><td class="text-right mono">${fmtNative(r.interes,moneda)}</td><td class="text-right mono">${fmtNative(r.cuota,moneda)}</td><td class="text-right mono">${fmtNative(r.saldo||0,moneda)}</td></tr>`).join('') || '<tr><td colspan="6">Sin datos.</td></tr>'}</tbody></table></div>`;
+    document.getElementById('scheduleResult').innerHTML = `<div class="table-scroll" style="max-height:380px;"><table><thead><tr><th>Mes</th><th>Fecha</th><th class="text-right">Capital</th><th class="text-right">Interés</th><th class="text-right">Cuota</th><th class="text-right">Saldo</th></tr></thead><tbody>${fls.map((r,i)=>`<tr><td>${i+1}</td><td>${r.fecha}</td><td class="text-right mono">${fmtNative(r.capital,moneda)}</td><td class="text-right mono">${fmtNative(r.interes,moneda)}</td><td class="text-right mono">${fmtNative(r.cuota,moneda)}</td><td class="text-right mono">${fmtNative(r.saldo||0,moneda)}</td></tr>`).join('') || '<tr><td colspan="6">Sin datos.</td></tr>'}</tbody></table></div>`;
     document.getElementById('saveScheduleBtn').disabled = false;
   });
   document.getElementById('saveScheduleBtn').addEventListener('click', ()=> guard(()=>{
@@ -803,7 +803,7 @@ function calendarioHtml(){
     </div>
     <div class="table-card" style="margin-top:14px;">
       <div class="panel-header-dark">${ic('clock')}<span>${state.calSelectedDate ? 'Eventos del '+state.calSelectedDate : 'Selecciona un día para ver el detalle'}</span></div>
-      <div class="table-scroll" style="max-height:260px;">
+      <div class="table-scroll" style="max-height:380px;">
         <table><thead><tr><th>Origen</th><th>Referencia</th><th>Banco</th><th class="text-right">Monto</th><th>Estado</th></tr></thead>
         <tbody>${selected.map(e=>`<tr><td>${e.origen}</td><td><b>${e.ref}</b></td><td>${e.banco}</td><td class="text-right mono">${fmtNative(e.capital+e.interes+e.extra, e.moneda)}</td><td><span class="badge ${e.estado==='Vencimiento'?'badge-red':'badge-amber'}">${e.estado}</span></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty-state">Sin eventos este día.</div></td></tr>'}</tbody></table>
       </div>
