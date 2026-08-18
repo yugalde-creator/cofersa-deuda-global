@@ -551,10 +551,9 @@ function amortizacionProximosHtml(){
     </div>`;
 }
 function dashboardHtml(){
-  return `
-    <div class="panel-grid">${saldosPorBancoHtml()}${distribucionPorMonedaHtml()}</div>
-    <div class="panel-grid">${indicadoresFinancierosHtml()}${tendenciaTasasPorBancoHtml()}</div>
-        ${tendenciaDeudaHtml()}`;
+  return '<div class="panel-grid">' + saldosPorBancoHtml() + distribucionPorMonedaHtml() + '</div>'
+    + '<div class="panel-grid">' + indicadoresFinancierosHtml() + tendenciaTasasPorBancoHtml() + '</div>'
+    + tendenciaDeudaHtml();
 }
 
 /* ================= LÍNEAS Y BANCOS ================= */
@@ -855,7 +854,7 @@ function proyeccionesHtml(){
                                                                                                                                                                                                                                                     <option value="anio" ${gran==='anio'?'selected':''}>Vista Anual</option>
                                                                                                                                                                                                                                                             </select>
                                                                                                                                                                                                                                                                   </div>
-                                                                                                                                                                                                                                                                        <div class="table-scroll" style="max-height:150px;">
+                                                                                                                                                                                                                                                                        <div class="table-scroll" style="max-height:260px;overflow-x:auto;">
                                                                                                                                                                                                                                                                                 <table>
                                                                                                                                                                                                                                                                                           <thead><tr><th style="min-width:180px;">Concepto</th>${rows.map(r=>`<th class="text-right">${r.periodo}</th>`).join('')}</tr></thead>
                                                                                                                                                                                                                                                                                                     <tbody><tr><td><b>Saldo Total de Deuda (${state.currency})</b></td>${rows.map(r=>`<td class="text-right mono">${fmtUSD(r.totalUSD)}</td>`).join('') || `<td><div class="empty-state">Sin datos.</div></td>`}</tr></tbody>
@@ -1056,11 +1055,11 @@ async function loadIntereses(){
     const d = await r.json();
     if(!d.ok) throw new Error(d.error);
     _interesesData = d;
-    const c = document.getElementById('moduleContent');
+    const c = document.getElementById('content');
     if(c && state.activeModule==='intereses') c.innerHTML = interesesHtml(d);
   } catch(e) {
-    const c = document.getElementById('moduleContent');
-    if(c) c.innerHTML = `<div class="table-card" style="padding:24px;"><div class="alert alert-error">Error al cargar intereses: ${e.message}</div></div>`;
+    const c = document.getElementById('content');
+    if(c) c.innerHTML = '<div class="table-card" style="padding:24px;"><b style="color:var(--red);">Error al calcular intereses: </b>' + e.message + '</div>';
   }
 }
 
