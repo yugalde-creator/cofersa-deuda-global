@@ -29,8 +29,14 @@ function totales(filas) {
 export default async function handler(req, res) {
   try {
     const hoy  = new Date();
-    const pAnt = mesMenos1(hoy);
-    const pSig = { anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 };
+    // Permite pasar ?anio=2026&mes=7 para consultar un período específico
+    const qAnio = parseInt(req.query.anio);
+    const qMes  = parseInt(req.query.mes);
+    const pAnt = (qAnio && qMes) ? { anio: qAnio, mes: qMes } : mesMenos1(hoy);
+    // La proyección es siempre el mes siguiente al causado
+    const pSig = pAnt.mes === 12
+      ? { anio: pAnt.anio + 1, mes: 1 }
+      : { anio: pAnt.anio, mes: pAnt.mes + 1 };
 
     const [activas, pagosProg] = await Promise.all([
       readRows(SHEETS.ACTIVAS),
