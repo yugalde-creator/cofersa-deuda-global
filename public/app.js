@@ -112,6 +112,7 @@ let state = {
   historicoTab: 'canceladas',
   deudaGranularidad: 'mes',
   lineEstadoFilter: '', pagoEstadoFilter: '', histEstadoFilter: '', leasingEstadoFilter: '',
+  monedaFilter: '', tipoFilter: '',
 };
 
 function toUSD(amount, cur){ return cur==='USD' ? amount : amount / FX[cur]; }
@@ -558,10 +559,13 @@ function dashboardHtml(){
 
 /* ================= LÍNEAS Y BANCOS ================= */
 function lineasCanceladasComoFilas(){ return lineasCanceladas.map(l=> ({ id:l.id, numOp:l.numOp, banco:l.banco, tipo:l.tipo||'—', moneda:l.moneda, aprobado:l.monto, tasa:l.tasa, vencimiento:l.vencimiento, _cancelada:true })); }
-function filteredLines(){ const usarCanceladas = state.lineEstadoFilter==='Cancelada'; const base = usarCanceladas ? lineasCanceladasComoFilas() : lines; return base.filter(l=>{ const matchBank = !state.bankFilter || l.banco===state.bankFilter; const q = state.searchQuery.toLowerCase(); const matchQ = !q || l.id.toLowerCase().includes(q) || (l.numOp||'').toLowerCase().includes(q) || l.banco.toLowerCase().includes(q) || (l.tipo||'').toLowerCase().includes(q); const estadoActual = usarCanceladas ? 'Cancelada' : estadoLinea(l).label; const matchEstado = state.lineEstadoFilter ? estadoActual===state.lineEstadoFilter : true; return matchBank && matchQ && matchEstado; }); }
+function filteredLines(){ const usarCanceladas = state.lineEstadoFilter==='Cancelada'; const base = usarCanceladas ? lineasCanceladasComoFilas() : lines; return base.filter(l=>{ const matchBank = !state.bankFilter || l.banco===state.bankFilter; const matchMoneda = !state.monedaFilter || l.moneda===state.monedaFilter; const matchTipo = !state.tipoFilter || (l.tipo||'')===state.tipoFilter; const q = state.searchQuery.toLowerCase(); const matchQ = !q || l.id.toLowerCase().includes(q) || (l.numOp||'').toLowerCase().includes(q) || l.banco.toLowerCase().includes(q) || (l.tipo||'').toLowerCase().includes(q); const estadoActual = usarCanceladas ? 'Cancelada' : estadoLinea(l).label; const matchEstado = state.lineEstadoFilter ? estadoActual===state.lineEstadoFilter : true; return matchBank && matchMoneda && matchTipo && matchQ && matchEstado; }); }
 
 function linesHtml(){
   const banks = Object.keys(bankLimits);
+  const allLines = [...lines, ...lineasCanceladasComoFilas()];
+  const tipos = [...new Set(allLines.map(l=>l.tipo||'').filter(Boolean))].sort();
+  const monedas = [...new Set(allLines.map(l=>l.moneda||'').filter(Boolean))].sort();
   const rows = filteredLines();
   const ro = isReadOnly();
   return `
@@ -572,6 +576,8 @@ function linesHtml(){
           <option value="">${ic('filter')} Todos los bancos</option>
           ${banks.map(b=>`<option value="${b}" ${state.bankFilter===b?'selected':''}>${b}</option>`).join('')}
         </select>
+        <select class="tb-select" id="monedaFilterSel"><option value="">Todas las monedas</option>${monedas.map(m=>`<option value="${m}" ${state.monedaFilter===m?'selected':''}>${m}</option>`).join('')}</select>
+        <select class="tb-select" id="tipoFilterSel"><option value="">Todos los tipos</option>${tipos.map(t=>`<option value="${t}" ${state.tipoFilter===t?'selected':''}>${t}</option>`).join('')}</select>
         <select class="tb-select" id="lineEstadoSel"><option value="">${ic('filter')} Todos los estados</option>${['Activa','Vencida','Cancelada'].map(s=>`<option value="${s}" ${state.lineEstadoFilter===s?'selected':''}>${s}</option>`).join('')}</select>
         <div class="spacer"></div>
         <button class="btn" id="exportLinesBtn">${ic('download')} Exportar</button>
@@ -1323,6 +1329,8 @@ function bindContentEvents(){
   if(state.activeModule==='lines'){
     document.getElementById('searchInput').addEventListener('input', e=>{ state.searchQuery=e.target.value; document.getElementById('linesBody').innerHTML = filteredLines().map(lineRowHtml).join('') || '<tr><td colspan="10"><div class="empty-state">No se encontraron líneas de crédito con ese criterio.</div></td></tr>'; bindRowClicks(); });
     document.getElementById('bankFilterSel').addEventListener('change', e=>{ state.bankFilter=e.target.value; renderContent(); });
+    document.getElementById('monedaFilterSel').addEventListener('change', e=>{ state.monedaFilter=e.target.value; renderContent(); });
+    document.getElementById('tipoFilterSel').addEventListener('change', e=>{ state.tipoFilter=e.target.value; renderContent(); });
     document.getElementById('lineEstadoSel').addEventListener('change', e=>{ state.lineEstadoFilter=e.target.value; renderContent();})
     document.getElementById('exportLinesBtn').addEventListener('click', ()=>{ exportCSV(filteredLines(), ['id','banco','tipo','moneda','aprobado','tasa','vencimiento'], 'lineas_credito.csv'); toast('Archivo CSV exportado.'); });
     document.getElementById('newLineBtn').addEventListener('click', ()=> guard(openNewLineScheduleModal));
