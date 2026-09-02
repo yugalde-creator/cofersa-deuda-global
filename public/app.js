@@ -76,11 +76,11 @@ function estadoLinea(l){
   const saldo = lineaSaldoActual(l);
   const dv = daysUntil(l.vencimiento);
   const dp = daysUntil(lineaProximoPago(l));
-  if(l.aprobado===0 && saldo===0 && !(paymentPlans[l.id]||[]).length) return {label:'Sin Disponer', cls:'badge-gray'};
-  if(saldo<=0 && (paymentPlans[l.id]||[]).length) return {label:'Pagada', cls:'badge-green'};
-  if(dv!==null && dv<0) return {label:'Vencido', cls:'badge-red', detail:'hace '+Math.abs(dv)+' día(s)'};
-  if(dp!==null && dp>=0 && dp<7) return {label:'Cuota Próxima', cls:'badge-amber', detail:'en '+dp+' día(s)'};
-  return {label:'Línea Activa', cls:'badge-blue', detail: dv!==null ? ('vence en '+dv+' días') : ''};
+  if(l.aprobado===0 && saldo===0 && !(paymentPlans[l.id]||[]).length) return {label:'Activa', cls:'badge-gray'};
+  if(saldo<=0 && (paymentPlans[l.id]||[]).length) return {label:'Cancelada', cls:'badge-green'};
+  if(dv!==null && dv<0) return {label:'Vencida', cls:'badge-red', detail:'hace '+Math.abs(dv)+' día(s)'};
+  if(dp!==null && dp>=0 && dp<7) return {label:'Activa', cls:'badge-amber', detail:'en '+dp+' día(s)'};
+  return {label:'Activa', cls:'badge-blue', detail: dv!==null ? ('vence en '+dv+' días') : ''};
 }
 function leasingSaldoActual(contrato){
   const plan = leasingPagos[contrato.id]||[];
@@ -558,7 +558,7 @@ function dashboardHtml(){
 
 /* ================= LÍNEAS Y BANCOS ================= */
 function lineasCanceladasComoFilas(){ return lineasCanceladas.map(l=> ({ id:l.id, numOp:l.numOp, banco:l.banco, tipo:l.tipo||'—', moneda:l.moneda, aprobado:l.monto, tasa:l.tasa, vencimiento:l.vencimiento, _cancelada:true })); }
-function filteredLines(){ const usarCanceladas = state.lineEstadoFilter==='Cancelada'; const base = usarCanceladas ? lineasCanceladasComoFilas() : lines; return base.filter(l=>{ const matchBank = !state.bankFilter || l.banco===state.bankFilter; const q = state.searchQuery.toLowerCase(); const matchQ = !q || l.id.toLowerCase().includes(q) || (l.numOp||'').toLowerCase().includes(q) || l.banco.toLowerCase().includes(q) || (l.tipo||'').toLowerCase().includes(q); const estadoActual = usarCanceladas ? 'Cancelada' : estadoLinea(l).label; const matchEstado = state.lineEstadoFilter ? estadoActual===state.lineEstadoFilter : estadoActual!=='Pagada'; return matchBank && matchQ && matchEstado; }); }
+function filteredLines(){ const usarCanceladas = state.lineEstadoFilter==='Cancelada'; const base = usarCanceladas ? lineasCanceladasComoFilas() : lines; return base.filter(l=>{ const matchBank = !state.bankFilter || l.banco===state.bankFilter; const q = state.searchQuery.toLowerCase(); const matchQ = !q || l.id.toLowerCase().includes(q) || (l.numOp||'').toLowerCase().includes(q) || l.banco.toLowerCase().includes(q) || (l.tipo||'').toLowerCase().includes(q); const estadoActual = usarCanceladas ? 'Cancelada' : estadoLinea(l).label; const matchEstado = state.lineEstadoFilter ? estadoActual===state.lineEstadoFilter : true; return matchBank && matchQ && matchEstado; }); }
 
 function linesHtml(){
   const banks = Object.keys(bankLimits);
@@ -572,7 +572,7 @@ function linesHtml(){
           <option value="">${ic('filter')} Todos los bancos</option>
           ${banks.map(b=>`<option value="${b}" ${state.bankFilter===b?'selected':''}>${b}</option>`).join('')}
         </select>
-        <select class="tb-select" id="lineEstadoSel"><option value="">${ic('filter')} Todos los estados</option>${['Línea Activa','Cuota Próxima','Vencido','Pagada','Sin Disponer','Cancelada'].map(s=>`<option value="${s}" ${state.lineEstadoFilter===s?'selected':''}>${s}</option>`).join('')}</select>
+        <select class="tb-select" id="lineEstadoSel"><option value="">${ic('filter')} Todos los estados</option>${['Activa','Vencida','Cancelada'].map(s=>`<option value="${s}" ${state.lineEstadoFilter===s?'selected':''}>${s}</option>`).join('')}</select>
         <div class="spacer"></div>
         <button class="btn" id="exportLinesBtn">${ic('download')} Exportar</button>
         <button class="btn btn-primary" id="newLineBtn" ${ro?'disabled title="Requiere rol Administrador"':''}>${ic('plus')} Nueva Línea</button>
