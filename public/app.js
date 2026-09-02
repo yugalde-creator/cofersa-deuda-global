@@ -322,7 +322,7 @@ function notifItemsHtml(){
   return upcoming.map(l=>{
     const d = daysUntil(lineaProximoPago(l));
     const color = d<3 ? 'var(--red)' : 'var(--amber)';
-    return `<div class="notif-item"><div class="notif-dot" style="background:${color}"></div><div><div class="notif-title">${l.id} · ${l.banco}</div><div class="notif-sub">Pago programado en ${d} día(s).</div></div></div>`;
+    return `<div class="notif-item"><div class="notif-dot" style="background:${color}"></div><div><div class="notif-title">${l.numOp||l.id} · ${l.banco}</div><div class="notif-sub">Pago programado en ${d} día(s).</div></div></div>`;
   }).join('');
 }
 
@@ -752,12 +752,12 @@ function allCuotasConMeta(){
   Object.entries(paymentPlans).forEach(([lid,plan])=>{
     const line = lines.find(l=>l.id===lid);
     if(!line) return;
-    plan.forEach(p=>arr.push({ origen:'Operación', ref:lid, banco:line.banco, moneda:line.moneda, fecha:p.fecha, capital:p.capital, interes:p.interes, extra:0, estado:p.estado }));
+    plan.forEach(p=>arr.push({ origen:'Operación', ref:lid, numOp:line.numOp||lid, banco:line.banco, moneda:line.moneda, fecha:p.fecha, capital:p.capital, interes:p.interes, extra:0, estado:p.estado }));
   });
   Object.entries(leasingPagos).forEach(([lid,plan])=>{
     const contrato = leasingContratos.find(l=>l.id===lid);
     if(!contrato) return;
-    plan.forEach(p=>arr.push({ origen:'Leasing', ref:lid, banco:contrato.banco, moneda:contrato.moneda, fecha:p.fecha, capital:p.capital, interes:p.interes, extra:(p.seguro||0)+(p.iva||0), estado:p.estado }));
+    plan.forEach(p=>arr.push({ origen:'Leasing', ref:lid, numOp:contrato.numOp||lid, banco:contrato.banco, moneda:contrato.moneda, fecha:p.fecha, capital:p.capital, interes:p.interes, extra:(p.seguro||0)+(p.iva||0), estado:p.estado }));
   });
   return arr;
 }
@@ -769,8 +769,8 @@ function calMonthLabel(){
 }
 function calEventsAll(){
   const cuotas = allCuotasConMeta().filter(c=>c.estado==='Pendiente');
-  const vencLineas = lines.filter(l=>l.vencimiento).map(l=>({origen:'Vencimiento Operación', ref:l.id, banco:l.banco, moneda:l.moneda, fecha:l.vencimiento, capital:0, interes:0, extra:0, estado:'Vencimiento'}));
-  const vencLeasing = leasingContratos.filter(l=>l.vencimiento).map(l=>({origen:'Vencimiento Leasing', ref:l.id, banco:l.banco, moneda:l.moneda, fecha:l.vencimiento, capital:0, interes:0, extra:0, estado:'Vencimiento'}));
+  const vencLineas = lines.filter(l=>l.vencimiento).map(l=>({origen:'Vencimiento Operación', ref:l.id, numOp:l.numOp||l.id, banco:l.banco, moneda:l.moneda, fecha:l.vencimiento, capital:0, interes:0, extra:0, estado:'Vencimiento'}));
+  const vencLeasing = leasingContratos.filter(l=>l.vencimiento).map(l=>({origen:'Vencimiento Leasing', ref:l.id, numOp:l.numOp||l.id, banco:l.banco, moneda:l.moneda, fecha:l.vencimiento, capital:0, interes:0, extra:0, estado:'Vencimiento'}));
   return [...cuotas, ...vencLineas, ...vencLeasing];
 }
 function calendarioHtml(){
@@ -811,7 +811,7 @@ function calendarioHtml(){
       <div class="panel-header-dark">${ic('clock')}<span>${state.calSelectedDate ? 'Eventos del '+state.calSelectedDate : 'Selecciona un día para ver el detalle'}</span></div>
       <div class="table-scroll" style="max-height:380px;">
         <table><thead><tr><th>Origen</th><th>Referencia</th><th>Banco</th><th class="text-right">Monto</th><th>Estado</th></tr></thead>
-        <tbody>${selected.map(e=>`<tr><td>${e.origen}</td><td><b>${e.ref}</b></td><td>${e.banco}</td><td class="text-right mono">${fmtNative(e.capital+e.interes+e.extra, e.moneda)}</td><td><span class="badge ${e.estado==='Vencimiento'?'badge-red':'badge-amber'}">${e.estado}</span></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty-state">Sin eventos este día.</div></td></tr>'}</tbody></table>
+        <tbody>${selected.map(e=>`<tr><td>${e.origen}</td><td><b>${e.numOp||e.ref}</b><div class="text-muted" style="font-size:10px;">${e.ref}</div></td><td>${e.banco}</td><td class="text-right mono">${fmtNative(e.capital+e.interes+e.extra, e.moneda)}</td><td><span class="badge ${e.estado==='Vencimiento'?'badge-red':'badge-amber'}">${e.estado}</span></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty-state">Sin eventos este día.</div></td></tr>'}</tbody></table>
       </div>
     </div>`;
 }
@@ -1224,7 +1224,38 @@ function interesesHtml(d){
   const tEjecutado  = tablaIntereses(ejecutado,  colsEjec,   `Ejecutado Real — ${pAnt}`,     '#375623');
   const tProyeccion = tablaIntereses(proyeccion, colsProy,   `Proyección Próximo Pago — ${pSig}`, '#C55A11');
 
-  return toolbar + kpis + difNote + tCausado + tEjecutado + tProyeccion;
+  // Tabla de varianza por operación para contabilidad
+  const varMap = {};
+  causado.forEach(f=>{ const k=f.op+'|'+f.moneda; if(!varMap[k]) varMap[k]={banco:f.banco,op:f.op,moneda:f.moneda,causado:0,ejecutado:0}; varMap[k].causado+=f.interes; });
+  ejecutado.forEach(f=>{ const k=f.op+'|'+f.moneda; if(!varMap[k]) varMap[k]={banco:f.banco,op:f.op,moneda:f.moneda,causado:0,ejecutado:0}; varMap[k].ejecutado+=f.interes; });
+  const varRows = Object.values(varMap).sort((a,b)=>a.op.localeCompare(b.op));
+  const varHtml = varRows.length ? (()=>{
+    const trs = varRows.map(function(r,i){
+      const diff = r.causado - r.ejecutado;
+      const pct = r.causado>0 ? Math.abs(diff/r.causado)*100 : 0;
+      const isUsd = r.moneda==='USD';
+      const colInt = isUsd ? '#FF6600' : '#0070C0';
+      const diffCls = diff>0 ? 'color:#C00000' : (diff<0 ? 'color:#375623' : 'color:var(--text-secondary)');
+      const alertIcon = pct>15 ? '⚠️ ' : (pct>5 ? '△ ' : '');
+      return '<tr class="'+(i%2?'alt-row':'')+'">'
+        +'<td>'+r.banco+'</td>'
+        +'<td class="mono">'+r.op+'</td>'
+        +'<td><span class="badge badge-blue">'+r.moneda+'</span></td>'
+        +'<td class="text-right mono" style="color:'+colInt+';">'+fmtNum(r.causado,r.moneda)+'</td>'
+        +'<td class="text-right mono" style="color:'+colInt+';">'+fmtNum(r.ejecutado,r.moneda)+'</td>'
+        +'<td class="text-right mono" style="'+diffCls+';font-weight:600;">'+alertIcon+fmtNum(Math.abs(diff),r.moneda)+(diff>0?' (exceso)':(diff<0?' (faltante)':''))+'</td>'
+        +'<td class="text-right mono" style="'+diffCls+';">'+pct.toFixed(1)+'%</td>'
+        +'</tr>';
+    }).join('');
+    return '<div class="table-card" style="margin-bottom:16px;">'
+      +'<div class="panel-header-dark" style="background:#4A235A;">'+ic('percent')+'<span>Varianza Causado vs Ejecutado — Por Operación (Contabilidad)</span>'
+      +'<span style="margin-left:auto;font-size:11px;opacity:.75;text-transform:none;">⚠️ >15% varianza significativa · △ >5% revisar</span></div>'
+      +'<div class="table-scroll" style="max-height:360px;">'
+      +'<table><thead><tr><th>Banco</th><th class="mono">N° Operación</th><th>Moneda</th><th class="text-right">Causado</th><th class="text-right">Ejecutado</th><th class="text-right">Diferencia</th><th class="text-right">%</th></tr></thead>'
+      +'<tbody>'+trs+'</tbody></table></div></div>';
+  })() : '';
+
+  return toolbar + kpis + difNote + tCausado + tEjecutado + tProyeccion + varHtml;
 }
 
 function moduleTitle(){
@@ -1425,7 +1456,7 @@ function openLineDetailModal(id){
   const plan = paymentPlans[l.id]||[];
   const puedeArchivar = saldo<=0 && plan.length>0;
   openModal(`
-    <div class="modal-header"><div><h2>${l.id} — ${l.banco}</h2><div class="sub">${l.tipo}</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="modal-header"><div><h2>${l.numOp||l.id} — ${l.banco}</h2><div class="sub">${l.tipo} · <span style="font-size:12px;opacity:.7;">${l.id}</span></div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
     <div class="modal-body">
       <div style="margin-bottom:12px;"><span class="badge ${est.cls}">${est.label}</span></div>
       <div class="detail-row"><span class="k">Moneda</span><span class="v">${l.moneda}</span></div>
@@ -1479,7 +1510,7 @@ function openEditUserModal(targetEmail){
 function openEditLineModal(lineaId){
   const l = lines.find(x=>x.id===lineaId); if(!l) return;
   openModal(`
-    <div class="modal-header"><div><h2>Editar Línea ${l.id}</h2><div class="sub">Modifica los campos de esta operación activa</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="modal-header"><div><h2>Editar ${l.numOp||l.id}</h2><div class="sub">Modifica los campos de esta operación activa · <span style="font-size:12px;opacity:.7;">${l.id}</span></div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
     <div class="modal-body">
       <div class="form-grid">
         <div class="form-field"><label>Banco</label><input id="el_banco" value="${l.banco}"></div>
@@ -1516,26 +1547,126 @@ function openNewPaymentModal(){
         <div class="form-field full"><label>Línea de Crédito</label><select id="p_linea">${lines.map(l=>`<option value="${l.id}">${l.numOp||l.id} — ${l.banco}</option>`).join('')}</select></div>
         <div class="form-field full"><label>Cuota Pendiente</label><select id="p_cuota">${pendingCuotaOptionsHtml(lines[0].id)}</select></div>
         <div class="form-field"><label>Fecha de Pago</label><input type="date" id="p_fecha"></div>
-        <div class="form-field"><label>Monto (moneda de la línea)</label><input type="number" id="p_monto" placeholder="0.00"></div>
+        <div class="form-field"><label>Monto Total Pagado</label><input type="number" id="p_monto" placeholder="0.00" step="0.01"></div>
+      </div>
+      <div id="p_desglose" style="display:none;margin-top:12px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Desglose de la cuota planificada</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+          <div style="text-align:center;">
+            <div style="font-size:11px;color:var(--text-secondary);">Capital</div>
+            <div id="p_cap_lbl" class="mono" style="font-size:15px;font-weight:700;color:var(--blue);">—</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:11px;color:var(--text-secondary);">Interés</div>
+            <div id="p_int_lbl" class="mono" style="font-size:15px;font-weight:700;color:#FF6600;">—</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:11px;color:var(--text-secondary);">Total Esperado</div>
+            <div id="p_tot_lbl" class="mono" style="font-size:15px;font-weight:700;">—</div>
+          </div>
+        </div>
+        <div id="p_varianza_alert" style="display:none;margin-top:10px;padding:8px 10px;border-radius:6px;font-size:12px;"></div>
       </div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="savePaymentBtn">${ic('plus')} Registrar</button></div>`);
+
+  let _cuotaCapital = 0, _cuotaInteres = 0;
+
   function refreshCuotaOptions(){
     const lineaId = document.getElementById('p_linea').value;
     document.getElementById('p_cuota').innerHTML = pendingCuotaOptionsHtml(lineaId);
   }
+  function fmtPay(n, cur){ const s=cur==='CRC'?'₡':'  document.getElementById('savePaymentBtn').addEventListener('click', ()=>{
+    const lineaId = document.getElementById('p_linea').value;
+    const fecha = document.getElementById('p_fecha').value;
+    const monto = parseFloat(document.getElementById('p_monto').value)||0;
+    const cuotaRow = document.getElementById('p_cuota').value;
+    if(!fecha){ toast('Selecciona la fecha de pago.', true); return; }
+    if(monto<=0){ toast('Ingresa un monto válido.', true); return; }
+    const btn = document.getElementById('savePaymentBtn'); btn.disabled = true;
+    callServer('registrarPago', [{ lineaId, fecha, monto, cuotaRow: cuotaRow ? Number(cuotaRow) : null }], res=>{
+      closeModal(); reloadData(()=>{ renderContent(); toast('Pago '+res.id+' registrado.'); });
+    }, ()=>{ btn.disabled = false; });
+  });
+}
+function openBulkUploadModal(){
+  if(!lines.length){ toast('No hay líneas activas para cargar cuotas.', true); return; }
+  openModal(`
+    <div class="modal-header"><div><h2>Carga Masiva de Amortización</h2><div class="sub">Pega el detalle del plan de pagos</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="modal-body">
+      <div class="form-field full" style="margin-bottom:12px;"><label>Línea de Crédito</label><select id="b_linea">${lines.map(l=>`<option value="${l.id}">${l.numOp||l.id} — ${l.banco}</option>`).join('')}</select></div>
+      <div class="form-field full"><label>Datos (CSV: fecha,capital,interes)</label><textarea id="b_data" rows="6" style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;font-family:monospace;" placeholder="2026-08-20,39300,12401&#10;2026-09-20,39700,12000"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="uploadPlanBtn">${ic('upload')} Validar y Cargar</button></div>`);
+  document.getElementById('uploadPlanBtn').addEventListener('click', ()=>{
+    const lineaId = document.getElementById('b_linea').value;
+    const raw = document.getElementById('b_data').value.trim();
+    if(!raw){ toast('Pega o carga al menos una fila.', true); return; }
+    const rows = parseCSV(raw);
+    const btn = document.getElementById('uploadPlanBtn'); btn.disabled = true;
+    callServer('cargaMasivaCuotas', [lineaId, rows], res=>{
+      if(res.dup>0) toast(res.dup+' fila(s) duplicada(s) omitida(s).', true);
+      closeModal(); reloadData(()=>{ renderContent(); toast(res.added+' cuota(s) cargada(s) correctamente.'); });
+    }, ()=>{ btn.disabled = false; });
+  });
+}
+
+/* ================= INIT ================= */
+document.addEventListener('click', e=>{
+  if(!e.target.closest('#notifBtn') && !e.target.closest('#notifDrop')) { if(state.notifOpen){ state.notifOpen=false; const d=document.getElementById('notifDrop'); if(d) d.classList.remove('open'); } }
+  if(!e.target.closest('#userChip') && !e.target.closest('#userDrop')) { if(state.userMenuOpen){ state.userMenuOpen=false; const d=document.getElementById('userDrop'); if(d) d.classList.remove('open'); } }
+});
+boot();
+; return s+(n||0).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function applySelectedCuota(){
     const lineaId = document.getElementById('p_linea').value;
     const cuotaRow = document.getElementById('p_cuota').value;
-    if(cuotaRow===''){ return; }
+    const des = document.getElementById('p_desglose');
+    const alert = document.getElementById('p_varianza_alert');
+    if(cuotaRow===''){ des.style.display='none'; _cuotaCapital=0; _cuotaInteres=0; return; }
     const plan = paymentPlans[lineaId]||[];
     const cuota = plan.find(p=>String(p._row)===String(cuotaRow));
-    if(!cuota) return;
+    if(!cuota){ des.style.display='none'; return; }
+    const line = lines.find(l=>l.id===lineaId);
+    const cur = line?line.moneda:'USD';
+    _cuotaCapital = cuota.capital; _cuotaInteres = cuota.interes;
+    const total = cuota.capital+cuota.interes;
     document.getElementById('p_fecha').value = cuota.fecha;
-    document.getElementById('p_monto').value = (cuota.capital+cuota.interes).toFixed(2);
+    document.getElementById('p_monto').value = total.toFixed(2);
+    document.getElementById('p_cap_lbl').textContent = fmtPay(cuota.capital, cur);
+    document.getElementById('p_int_lbl').textContent = fmtPay(cuota.interes, cur);
+    document.getElementById('p_tot_lbl').textContent = fmtPay(total, cur);
+    des.style.display='block';
+    alert.style.display='none';
+  }
+  function checkVarianza(){
+    const montoEl = document.getElementById('p_monto');
+    const alert = document.getElementById('p_varianza_alert');
+    if(!montoEl || !alert || _cuotaCapital+_cuotaInteres===0){ if(alert) alert.style.display='none'; return; }
+    const monto = parseFloat(montoEl.value)||0;
+    const esperado = _cuotaCapital+_cuotaInteres;
+    if(esperado===0){ alert.style.display='none'; return; }
+    const diff = monto - esperado;
+    const pct = Math.abs(diff/esperado)*100;
+    if(pct < 0.5){ alert.style.display='none'; return; }
+    const propInt = esperado>0 ? (_cuotaInteres/esperado) : 0;
+    const intEstimado = monto * propInt;
+    const intDiff = intEstimado - _cuotaInteres;
+    const sign = diff>0 ? '+' : '';
+    const lineaId = document.getElementById('p_linea').value;
+    const line = lines.find(l=>l.id===lineaId);
+    const cur = line?line.moneda:'USD';
+    const isOver = diff>0;
+    alert.style.display='block';
+    alert.style.background = isOver ? '#FFF8E1' : '#FFF3F3';
+    alert.style.border = '1px solid '+(isOver ? '#FFD54F' : '#FFCDD2');
+    alert.style.color = isOver ? '#7F6000' : '#B71C1C';
+    alert.innerHTML = `⚠️ Monto difiere ${sign}${pct.toFixed(1)}% del planificado (${fmtPay(esperado,cur)}).`
+      + ` Interés estimado: ${fmtPay(intEstimado,cur)} (diferencia: ${intDiff>=0?'+':''}${fmtPay(intDiff,cur)}).`;
   }
   document.getElementById('p_linea').addEventListener('change', ()=>{ refreshCuotaOptions(); applySelectedCuota(); });
   document.getElementById('p_cuota').addEventListener('change', applySelectedCuota);
+  document.getElementById('p_monto').addEventListener('input', checkVarianza);
   applySelectedCuota();
   document.getElementById('savePaymentBtn').addEventListener('click', ()=>{
     const lineaId = document.getElementById('p_linea').value;
