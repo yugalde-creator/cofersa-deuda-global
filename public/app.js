@@ -596,12 +596,12 @@ function linesHtml(){
     </div>`;
 }
 function lineRowHtml(l){
-  if(l._cancelada){ return `<tr data-id="${l.id}" data-cancelada="1"<td><b>${l.numOp||l.id}</b><div class="text-muted" style="font-size:10.5px;">${l.id}</div></td>>d><td>${l.banco}</td><td>${l.tipo}</td><td><span class="badge badge-gray">${l.moneda}</span></td><td class="text-right mono">${fmtNative(l.aprobado,l.moneda)}</td><td class="text-right mono">${fmtNative(0,l.moneda)}</td><td><span class="progress-bar-track"><span class="progress-bar-fill" style="width:100%"></span></span><span class="text-muted">100%</span></td><td class="text-right mono">${(l.tasa||0).toFixed(2)}%</td><td>${l.vencimiento}</td><td><span class="badge badge-gray">Cancelada</span></td></tr>`; }
+  if(l._cancelada){ return `<tr data-id="${l.id}" data-cancelada="1"><td><b>${l.numOp||l.id}</b><div class="text-muted" style="font-size:10.5px;">${l.id}</div></td><td>${l.banco}</td><td>${l.tipo}</td><td><span class="badge badge-gray">${l.moneda}</span></td><td class="text-right mono">${fmtNative(l.aprobado,l.moneda)}</td><td class="text-right mono">${fmtNative(0,l.moneda)}</td><td><span class="progress-bar-track"><span class="progress-bar-fill" style="width:100%"></span></span><span class="text-muted">100%</span></td><td class="text-right mono">${l.tasa||0}.toFixed(2)}%</td><td>${l.vencimiento}</td><td><span class="badge badge-gray">Cancelada</span></td></tr>`; }
   const est = estadoLinea(l);
   const saldo = lineaSaldoActual(l);
   const util = l.aprobado ? Math.round((saldo/l.aprobado)*100) : 0;
   return `<tr data-id="${l.id}">
-    <td><b>${l.numOp||l.id}</b><div class="text-muted" style="font-size:10.5px;">${l.id}</div></td>>
+    <td><b>${l.numOp||l.id}</b><div class="text-muted" style="font-size:10.5px;">${l.id}</div></td>
     <td>${l.banco}</td>
     <td>${l.tipo}</td>
     <td><span class="badge badge-gray">${l.moneda}</span></td>
@@ -610,7 +610,7 @@ function lineRowHtml(l){
     <td><span class="progress-bar-track"><span class="progress-bar-fill" style="width:${util}%"></span></span><span class="text-muted">${util}%</span></td>
     <td class="text-right mono">${l.tasa.toFixed(2)}%</td>
     <td>${l.vencimiento}</td>
-    <td><span class="badge ${est.cls}">${est.label}</span>${est.detail?'<div class="text-muted" style="font-size:10.5px;margin-top:2px;">'+est.detail+'</div>':''}</td>>
+    <td><span class="badge ${est.cls}">${est.label}</span>${est.detail?'<div class="text-muted" style="font-size:10.5px;margin-top:2px;">'+est.detail+'</div>':''}</td>
   </tr>`;
 }
 
@@ -640,7 +640,7 @@ function opsHtml(){
                                                                                                                                                                                 <tbody>
                                                                                                                                                                                               ${planEntries.map(({lid,p})=>{ const line=lines.find(l=>l.id===lid); const cur=line?line.moneda:'USD'; return `
                                                                                                                                                                                                               <tr><td><b>${line?.numOp||lid}</b></td><td>${p.fecha}</td><td class="text-right mono">${fmtNative(p.capital,cur)}</td><td class="text-right mono">${fmtNative(p.interes,cur)}</td>
-                                                                                                                                                                                                                              <td><span class="badge ${p.estado==='Pagado'?'badge-green':'badge-amber'}">${p.estado}</span></td></tr>`; }).join('') || '<tr><td colspan="5"><div class="empty-state">Sin planes de pago que coincidan con el filtro.</div></td></tr>'}
+                                                                                                                                                                                                                               <td><span class="badge ${p.estado==='Pagado'?'badge-green':'badge-amber'}">${p.estado}</span></td></tr>`; }).join('') || '<tr><td colspan="5"><div class="empty-state">Sin planes de pago que coincidan con el filtro.</div></td></tr>'}
                                                                                                                                                                                                                                           </tbody>
                                                                                                                                                                                                                                                     </table>
                                                                                                                                                                                                                                                             </div>
@@ -689,17 +689,42 @@ function openNewLineScheduleModal(){
         <div class="form-field"><label>N° Operación</label><input type="text" id="s_numop" placeholder="Ej: 10026911"></div>
         <div class="form-field"><label>Fecha Desembolso</label><input type="date" id="s_desembolso"></div>
         <div class="form-field"><label>Monto Original</label><input type="number" id="s_monto" placeholder="0.00"></div>
-        <div class="form-field"><label>Moneda</label><select id="s_moneda"><option value="USD">USD— Ólar</option><option value="CRC">CRC — Colón</option></select></div>
+        <div class="form-field"><label>Moneda</label><select id="s_moneda"><option value="USD">USD — Dólar</option><option value="CRC">CRC — Colón</option></select></div>
         <div class="form-field"><label>Tasa Anual (%)</label><input type="number" step="0.01" id="s_tasa" placeholder="8.00"></div>
         <div class="form-field"><label>Plazo (meses)</label><input type="number" id="s_plazo" placeholder="12" value="12"></div>
         <div class="form-field"><label>Fecha 1° Pago</label><input type="date" id="s_primerpago"></div>
       </div>
-      <div style="margin-top:14px;"><button class="btn" id="calcScheduleBtn">${ic('percent')} Calcular Plan de Pagos</button></div>
+      <div style="margin-top:14px;display:flex;gap:8px;align-items:center;">
+        <button class="btn" id="modeCalcBtn" style="font-weight:700;">${ic('percent')} Calcular automáticamente</button>
+        <button class="btn" id="modeBancoBtn">${ic('upload')} Cargar tabla del banco</button>
+      </div>
+      <div id="sectionCalc" style="margin-top:12px;">
+        <button class="btn" id="calcScheduleBtn">${ic('percent')} Calcular Plan de Pagos</button>
+      </div>
+      <div id="sectionBanco" style="margin-top:12px;display:none;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">Pega la tabla del banco (CSV: fecha,capital,interes — una cuota por línea)</label>
+        <textarea id="s_banco_csv" rows="7" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;font-family:monospace;box-sizing:border-box;" placeholder="2026-08-20,39300,12401&#10;2026-09-20,39700,12001&#10;..."></textarea>
+        <button class="btn" id="previewBancoBtn" style="margin-top:8px;">${ic('eye')} Previsualizar tabla</button>
+      </div>
       <div id="scheduleResult" style="margin-top:14px;"></div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="saveScheduleBtn" disabled>${ic('plus')} Guardar Línea y Plan de Pagos</button></div>`);
 
   let scheduleData = null;
+  let _mode = 'calc'; // 'calc' | 'banco'
+
+  function setMode(m){
+    _mode = m;
+    document.getElementById('sectionCalc').style.display = m==='calc' ? '' : 'none';
+    document.getElementById('sectionBanco').style.display = m==='banco' ? '' : 'none';
+    document.getElementById('modeCalcBtn').style.fontWeight = m==='calc' ? '700' : '';
+    document.getElementById('modeBancoBtn').style.fontWeight = m==='banco' ? '700' : '';
+    scheduleData = null;
+    document.getElementById('saveScheduleBtn').disabled = true;
+    document.getElementById('scheduleResult').innerHTML = '';
+  }
+  document.getElementById('modeCalcBtn').addEventListener('click', ()=> setMode('calc'));
+  document.getElementById('modeBancoBtn').addEventListener('click', ()=> setMode('banco'));
 
   document.getElementById('calcScheduleBtn').addEventListener('click', ()=>{
     const banco = document.getElementById('s_banco').value;
@@ -712,14 +737,44 @@ function openNewLineScheduleModal(){
     const desembolso = document.getElementById('s_desembolso').value;
     if(!numOp){ toast('Ingresa el N° de Operación.', true); return; }
     if(monto<=0){ toast('Ingresa un monto válido.', true); return; }
-    if(plazo<=0 || plazo>60){ toast('El plazo debe estar entre 1 y 60 meses.', true); return; }
+    if(plazo<=0 || plazo>360){ toast('El plazo debe estar entre 1 y 360 meses.', true); return; }
     if(!primerPago || !desembolso){ toast('Completa las fechas de desembolso y primer pago.', true); return; }
     scheduleData = calcularAmortizacion(monto, tasa, plazo, primerPago);
     scheduleData.banco = banco; scheduleData.numOp = numOp; scheduleData.monto = monto; scheduleData.moneda = moneda; scheduleData.tasa = tasa; scheduleData.plazo = plazo; scheduleData.desembolso = desembolso; scheduleData.primerPago = primerPago;
     const fls = scheduleData.filas || [];
-    document.getElementById('scheduleResult').innerHTML = `<div class="table-scroll" style="max-height:380px;"><table><thead><tr><th>Mes</th><th>Fecha</th><th class="text-right">Capital</th><th class="text-right">Interés</th><th class="text-right">Cuota</th><th class="text-right">Saldo</th></tr></thead><tbody>${fls.map((r,i)=>`<tr><td>${i+1}</td><td>${r.fecha}</td><td class="text-right mono">${fmtNative(r.capital,moneda)}</td><td class="text-right mono">${fmtNative(r.interes,moneda)}</td><td class="text-right mono">${fmtNative(r.cuota,moneda)}</td><td class="text-right mono">${fmtNative(r.saldo||0,moneda)}</td></tr>`).join('') || '<tr><td colspan="6">Sin datos.</td></tr>'}</tbody></table></div>`;
+    document.getElementById('scheduleResult').innerHTML = `<div class="table-scroll" style="max-height:320px;"><table><thead><tr><th>Mes</th><th>Fecha</th><th class="text-right">Capital</th><th class="text-right">Interés</th><th class="text-right">Cuota</th><th class="text-right">Saldo</th></tr></thead><tbody>${fls.map((r,i)=>`<tr><td>${i+1}</td><td>${r.fecha}</td><td class="text-right mono">${fmtNative(r.capital,moneda)}</td><td class="text-right mono">${fmtNative(r.interes,moneda)}</td><td class="text-right mono">${fmtNative(r.cuota,moneda)}</td><td class="text-right mono">${fmtNative(r.saldo||0,moneda)}</td></tr>`).join('') || '<tr><td colspan="6">Sin datos.</td></tr>'}</tbody></table></div>`;
     document.getElementById('saveScheduleBtn').disabled = false;
   });
+
+  document.getElementById('previewBancoBtn').addEventListener('click', ()=>{
+    const banco = document.getElementById('s_banco').value;
+    const numOp = document.getElementById('s_numop').value.trim();
+    const monto = parseFloat(document.getElementById('s_monto').value)||0;
+    const moneda = document.getElementById('s_moneda').value;
+    const tasa = parseFloat(document.getElementById('s_tasa').value)||0;
+    const desembolso = document.getElementById('s_desembolso').value;
+    if(!numOp){ toast('Ingresa el N° de Operación.', true); return; }
+    if(!desembolso){ toast('Ingresa la fecha de desembolso.', true); return; }
+    const raw = document.getElementById('s_banco_csv').value.trim();
+    if(!raw){ toast('Pega la tabla del banco en formato CSV.', true); return; }
+    const filas = parseCSV(raw).filter(r=>r.length>=3).map((r,i)=>({ n:i+1, fecha:r[0].trim(), capital:Number(r[1])||0, interes:Number(r[2])||0 }));
+    if(!filas.length){ toast('No se encontraron filas válidas. Formato: fecha,capital,interes', true); return; }
+    const vencimiento = filas[filas.length-1].fecha;
+    scheduleData = { banco, numOp, monto: monto||filas.reduce((s,f)=>s+f.capital,0), moneda, tasa, plazo: filas.length, desembolso, primerPago: filas[0].fecha, filasTabla: filas.map(f=>({fecha:f.fecha,capital:f.capital,interes:f.interes})), vencimiento };
+    const totalCap = filas.reduce((s,f)=>s+f.capital,0);
+    const totalInt = filas.reduce((s,f)=>s+f.interes,0);
+    document.getElementById('scheduleResult').innerHTML = `
+      <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;">
+        <div class="detail-row" style="flex:1;min-width:140px;"><span class="k">Cuotas</span><span class="v">${filas.length}</span></div>
+        <div class="detail-row" style="flex:1;min-width:140px;"><span class="k">Total Capital</span><span class="v">${fmtNative(totalCap,moneda)}</span></div>
+        <div class="detail-row" style="flex:1;min-width:140px;"><span class="k">Total Interés</span><span class="v">${fmtNative(totalInt,moneda)}</span></div>
+        <div class="detail-row" style="flex:1;min-width:140px;"><span class="k">Vencimiento</span><span class="v">${vencimiento}</span></div>
+      </div>
+      <div class="table-scroll" style="max-height:280px;"><table><thead><tr><th>#</th><th>Fecha</th><th class="text-right">Capital</th><th class="text-right">Interés</th><th class="text-right">Cuota</th></tr></thead><tbody>${filas.map(r=>`<tr><td>${r.n}</td><td>${r.fecha}</td><td class="text-right mono">${fmtNative(r.capital,moneda)}</td><td class="text-right mono">${fmtNative(r.interes,moneda)}</td><td class="text-right mono">${fmtNative(r.capital+r.interes,moneda)}</td></tr>`).join('')}</tbody></table></div>`;
+    document.getElementById('saveScheduleBtn').disabled = false;
+    toast('Tabla del banco cargada: '+filas.length+' cuotas.');
+  });
+
   document.getElementById('saveScheduleBtn').addEventListener('click', ()=> guard(()=>{
     callServer('crearLinea', [scheduleData], res=>{
       closeModal(); reloadData(()=>{ renderContent(); toast('Línea '+(res.numOp||res.id||'')+' creada con plan de pagos.'); });
@@ -810,8 +865,8 @@ function calendarioHtml(){
     <div class="table-card" style="margin-top:14px;">
       <div class="panel-header-dark">${ic('clock')}<span>${state.calSelectedDate ? 'Eventos del '+state.calSelectedDate : 'Selecciona un día para ver el detalle'}</span></div>
       <div class="table-scroll" style="max-height:380px;">
-        <table><thead><tr><th>Origen</th><th>Referencia</th><th>Banco</th><th class="text-right">Monto</th><th>Estado</th></tr></thead>
-        <tbody>${selected.map(e=>`<tr><td>${e.origen}</td><td><b>${e.numOp||e.ref}</b><div class="text-muted" style="font-size:10px;">${e.ref}</div></td><td>${e.banco}</td><td class="text-right mono">${fmtNative(e.capital+e.interes+e.extra, e.moneda)}</td><td><span class="badge ${e.estado==='Vencimiento'?'badge-red':'badge-amber'}">${e.estado}</span></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty-state">Sin eventos este día.</div></td></tr>'}</tbody></table>
+        <table><thead><tr><th>Origen</th><th>Referencia</th><th>Banco</th><th class="text-right">Amortización</th><th class="text-right">Interés</th><th class="text-right">Total</th><th>Estado</th></tr></thead>
+        <tbody>${selected.map(e=>`<tr><td>${e.origen}</td><td><b>${e.numOp||e.ref}</b><div class="text-muted" style="font-size:10px;">${e.ref}</div></td><td>${e.banco}</td><td class="text-right mono">${e.capital>0?fmtNative(e.capital,e.moneda):'—'}</td><td class="text-right mono">${e.interes>0?fmtNative(e.interes,e.moneda):'—'}</td><td class="text-right mono"><b>${fmtNative(e.capital+e.interes+e.extra,e.moneda)}</b></td><td><span class="badge ${e.estado==='Vencimiento'?'badge-red':'badge-amber'}">${e.estado}</span></td></tr>`).join('') || '<tr><td colspan="7"><div class="empty-state">Sin eventos este día.</div></td></tr>'}</tbody></table>
       </div>
     </div>`;
 }
@@ -856,10 +911,10 @@ function proyeccionesHtml(){
                                                                                                                                                                                                                   <div class="table-card">
                                                                                                                                                                                                                         <div class="panel-header-dark">${ic('trending')}<span>Tendencia de Deuda Total</span><div class="spacer"></div>
                                                                                                                                                                                                                                 <select class="tb-select" id="deudaGranSel" style="min-width:140px;margin:0;">
-                                                                                                                                                                                                                                          <option value="mes" ${gran==='mes'?'selected':''}>Vista Mensual</option>
-                                                                                                                                                                                                                                                    <option value="anio" ${gran==='anio'?'selected':''}>Vista Anual</option>
+                                                                                                                                                                                                                                           <option value="mes" ${gran==='mes'?'selected':''}>Vista Mensual</option>
+                                                                                                                                                                                                                                                     <option value="anio" ${gran==='anio'?'selected':''}>Vista Anual</option>
                                                                                                                                                                                                                                                             </select>
-                                                                                                                                                                                                                                                                  </div>
+                                                                                                                                                                                                                                                                </div>
                                                                                                                                                                                                                                                                         <div class="table-scroll" style="max-height:260px;overflow-x:auto;">
                                                                                                                                                                                                                                                                                 <table>
                                                                                                                                                                                                                                                                                           <thead><tr><th style="min-width:180px;">Concepto</th>${rows.map(r=>`<th class="text-right">${r.periodo}</th>`).join('')}</tr></thead>
@@ -1114,13 +1169,13 @@ function interesesMesesOpciones(selAnio, selMes){
     var a = d.getFullYear(), m = d.getMonth()+1;
     var val = a+'-'+m, lbl = meses[m-1]+' '+a;
     var sel = (a===selAnio && m===selMes) ? ' selected' : '';
-    opts += '<option value="'+val+'"'+sel+'>'+lbl+'</option>';
+    opts += '<option value="'+val+'" '+sel+'>'+lbl+'</option>';
   }
   return opts;
 }
 
 function interesesHtml(d){
-  const {periodos, totales: tot, causado, ejecutado, proyeccion} = d;
+  const {periodos, totales: tot, causado, jecutado, proyeccion} = d;
   const pAnt = periodos.causado.label;
   const pSig = periodos.proyeccion.label;
   const selAnio = periodos.causado.anio, selMes = periodos.causado.mes;
@@ -1248,7 +1303,7 @@ function interesesHtml(d){
         +'</tr>';
     }).join('');
     return '<div class="table-card" style="margin-bottom:16px;">'
-      +'<div class="panel-header-dark" style="background:#4A235A;">'+ic('percent')+'<span>Varianza Causado vs Ejecutado — Por Operación (Contabilidad)</span>'
+      +'<div class="panel-header-dark" style="background:#4A235A;">'+ ic('percent') +'<span>Varianza Causado vs Ejecutado — Por Operación (Contabilidad)</span>'
       +'<span style="margin-left:auto;font-size:11px;opacity:.75;text-transform:none;">⚠️ >15% varianza significativa · △ >5% revisar</span></div>'
       +'<div class="table-scroll" style="max-height:360px;">'
       +'<table><thead><tr><th>Banco</th><th class="mono">N° Operación</th><th>Moneda</th><th class="text-right">Causado</th><th class="text-right">Ejecutado</th><th class="text-right">Diferencia</th><th class="text-right">%</th></tr></thead>'
@@ -1686,19 +1741,45 @@ function openBulkUploadModal(){
     <div class="modal-header"><div><h2>Carga Masiva de Amortización</h2><div class="sub">Pega el detalle del plan de pagos</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
     <div class="modal-body">
       <div class="form-field full" style="margin-bottom:12px;"><label>Línea de Crédito</label><select id="b_linea">${lines.map(l=>`<option value="${l.id}">${l.numOp||l.id} — ${l.banco}</option>`).join('')}</select></div>
-      <div class="form-field full"><label>Datos (CSV: fecha,capital,interes)</label><textarea id="b_data" rows="6" style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;font-family:monospace;" placeholder="2026-08-20,39300,12401&#10;2026-09-20,39700,12000"></textarea></div>
+      <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
+        <button class="btn" id="modeAddBtn" style="font-weight:700;">${ic('plus')} Agregar cuotas</button>
+        <button class="btn" id="modeReplaceBtn">${ic('refresh')} Reemplazar plan completo</button>
+      </div>
+      <div id="b_mode_note" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Agrega cuotas nuevas al plan existente (omite duplicados por fecha).</div>
+      <div class="form-field full"><label>Datos (CSV: fecha,capital,interes — una cuota por línea)</label><textarea id="b_data" rows="7" style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;font-family:monospace;width:100%;box-sizing:border-box;" placeholder="2026-08-20,39300,12401&#10;2026-09-20,39700,12000"></textarea></div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="uploadPlanBtn">${ic('upload')} Validar y Cargar</button></div>`);
+
+  let _replaceMode = false;
+  document.getElementById('modeAddBtn').addEventListener('click', ()=>{
+    _replaceMode = false;
+    document.getElementById('modeAddBtn').style.fontWeight = '700';
+    document.getElementById('modeReplaceBtn').style.fontWeight = '';
+    document.getElementById('b_mode_note').textContent = 'Agrega cuotas nuevas al plan existente (omite duplicados por fecha).';
+  });
+  document.getElementById('modeReplaceBtn').addEventListener('click', ()=>{
+    _replaceMode = true;
+    document.getElementById('modeAddBtn').style.fontWeight = '';
+    document.getElementById('modeReplaceBtn').style.fontWeight = '700';
+    document.getElementById('b_mode_note').textContent = '⚠️ Elimina todas las cuotas Pendiente de la línea y carga las nuevas. Las cuotas ya pagadas se conservan.';
+  });
+
   document.getElementById('uploadPlanBtn').addEventListener('click', ()=>{
     const lineaId = document.getElementById('b_linea').value;
     const raw = document.getElementById('b_data').value.trim();
     if(!raw){ toast('Pega o carga al menos una fila.', true); return; }
     const rows = parseCSV(raw);
     const btn = document.getElementById('uploadPlanBtn'); btn.disabled = true;
-    callServer('cargaMasivaCuotas', [lineaId, rows], res=>{
-      if(res.dup>0) toast(res.dup+' fila(s) duplicada(s) omitida(s).', true);
-      closeModal(); reloadData(()=>{ renderContent(); toast(res.added+' cuota(s) cargada(s) correctamente.'); });
-    }, ()=>{ btn.disabled = false; });
+    if(_replaceMode){
+      callServer('reemplazarPlanPagos', [lineaId, rows], res=>{
+        closeModal(); reloadData(()=>{ renderContent(); toast('Plan reemplazado: '+res.added+' cuota(s) cargadas.'); });
+      }, ()=>{ btn.disabled = false; });
+    } else {
+      callServer('cargaMasivaCuotas', [lineaId, rows], res=>{
+        if(res.dup>0) toast(res.dup+' fila(s) duplicada(s) omitida(s).', true);
+        closeModal(); reloadData(()=>{ renderContent(); toast(res.added+' cuota(s) cargada(s) correctamente.'); });
+      }, ()=>{ btn.disabled = false; });
+    }
   });
 }
 
