@@ -1576,48 +1576,7 @@ function openNewPaymentModal(){
     const lineaId = document.getElementById('p_linea').value;
     document.getElementById('p_cuota').innerHTML = pendingCuotaOptionsHtml(lineaId);
   }
-  function fmtPay(n, cur){ const s=cur==='CRC'?'₡':'  document.getElementById('savePaymentBtn').addEventListener('click', ()=>{
-    const lineaId = document.getElementById('p_linea').value;
-    const fecha = document.getElementById('p_fecha').value;
-    const monto = parseFloat(document.getElementById('p_monto').value)||0;
-    const cuotaRow = document.getElementById('p_cuota').value;
-    if(!fecha){ toast('Selecciona la fecha de pago.', true); return; }
-    if(monto<=0){ toast('Ingresa un monto válido.', true); return; }
-    const btn = document.getElementById('savePaymentBtn'); btn.disabled = true;
-    callServer('registrarPago', [{ lineaId, fecha, monto, cuotaRow: cuotaRow ? Number(cuotaRow) : null }], res=>{
-      closeModal(); reloadData(()=>{ renderContent(); toast('Pago '+res.id+' registrado.'); });
-    }, ()=>{ btn.disabled = false; });
-  });
-}
-function openBulkUploadModal(){
-  if(!lines.length){ toast('No hay líneas activas para cargar cuotas.', true); return; }
-  openModal(`
-    <div class="modal-header"><div><h2>Carga Masiva de Amortización</h2><div class="sub">Pega el detalle del plan de pagos</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
-    <div class="modal-body">
-      <div class="form-field full" style="margin-bottom:12px;"><label>Línea de Crédito</label><select id="b_linea">${lines.map(l=>`<option value="${l.id}">${l.numOp||l.id} — ${l.banco}</option>`).join('')}</select></div>
-      <div class="form-field full"><label>Datos (CSV: fecha,capital,interes)</label><textarea id="b_data" rows="6" style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;font-family:monospace;" placeholder="2026-08-20,39300,12401&#10;2026-09-20,39700,12000"></textarea></div>
-    </div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="uploadPlanBtn">${ic('upload')} Validar y Cargar</button></div>`);
-  document.getElementById('uploadPlanBtn').addEventListener('click', ()=>{
-    const lineaId = document.getElementById('b_linea').value;
-    const raw = document.getElementById('b_data').value.trim();
-    if(!raw){ toast('Pega o carga al menos una fila.', true); return; }
-    const rows = parseCSV(raw);
-    const btn = document.getElementById('uploadPlanBtn'); btn.disabled = true;
-    callServer('cargaMasivaCuotas', [lineaId, rows], res=>{
-      if(res.dup>0) toast(res.dup+' fila(s) duplicada(s) omitida(s).', true);
-      closeModal(); reloadData(()=>{ renderContent(); toast(res.added+' cuota(s) cargada(s) correctamente.'); });
-    }, ()=>{ btn.disabled = false; });
-  });
-}
-
-/* ================= INIT ================= */
-document.addEventListener('click', e=>{
-  if(!e.target.closest('#notifBtn') && !e.target.closest('#notifDrop')) { if(state.notifOpen){ state.notifOpen=false; const d=document.getElementById('notifDrop'); if(d) d.classList.remove('open'); } }
-  if(!e.target.closest('#userChip') && !e.target.closest('#userDrop')) { if(state.userMenuOpen){ state.userMenuOpen=false; const d=document.getElementById('userDrop'); if(d) d.classList.remove('open'); } }
-});
-boot();
-; return s+(n||0).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function fmtPay(n, cur){ const s=cur==='CRC'?'₡':'$'; return s+(n||0).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function applySelectedCuota(){
     const lineaId = document.getElementById('p_linea').value;
     const cuotaRow = document.getElementById('p_cuota').value;
