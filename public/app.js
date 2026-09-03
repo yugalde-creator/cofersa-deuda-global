@@ -1540,104 +1540,144 @@ function pendingCuotaOptionsHtml(lineaId){
 }
 function openNewPaymentModal(){
   if(!lines.length){ toast('No hay líneas activas para registrar un pago.', true); return; }
+  const firstLine = lines[0];
   openModal(`
     <div class="modal-header"><div><h2>Registrar Pago</h2><div class="sub">Concilia un pago contra una cuota pendiente o regístralo manualmente</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-field full"><label>Línea de Crédito</label><select id="p_linea">${lines.map(l=>`<option value="${l.id}">${l.numOp||l.id} — ${l.banco}</option>`).join('')}</select></div>
-        <div class="form-field full"><label>Cuota Pendiente</label><select id="p_cuota">${pendingCuotaOptionsHtml(lines[0].id)}</select></div>
-        <div class="form-field"><label>Fecha de Pago</label><input type="date" id="p_fecha"></div>
-        <div class="form-field"><label>Monto Total Pagado</label><input type="number" id="p_monto" placeholder="0.00" step="0.01"></div>
-      </div>
-      <div id="p_desglose" style="display:none;margin-top:12px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;">
-        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Desglose de la cuota planificada</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-          <div style="text-align:center;">
-            <div style="font-size:11px;color:var(--text-secondary);">Capital</div>
-            <div id="p_cap_lbl" class="mono" style="font-size:15px;font-weight:700;color:var(--blue);">—</div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-size:11px;color:var(--text-secondary);">Interés</div>
-            <div id="p_int_lbl" class="mono" style="font-size:15px;font-weight:700;color:#FF6600;">—</div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-size:11px;color:var(--text-secondary);">Total Esperado</div>
-            <div id="p_tot_lbl" class="mono" style="font-size:15px;font-weight:700;">—</div>
+        <div class="form-field full">
+          <label>Línea de Crédito</label>
+          <select id="p_linea">${lines.map(l=>`<option value="${l.id}">${l.numOp||l.id} — ${l.banco}</option>`).join('')}</select>
+          <div style="margin-top:6px;font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">
+            Saldo actual: <span id="p_saldo_val" class="mono" style="font-weight:700;color:var(--blue);">—</span>
           </div>
         </div>
-        <div id="p_varianza_alert" style="display:none;margin-top:10px;padding:8px 10px;border-radius:6px;font-size:12px;"></div>
+        <div class="form-field full"><label>Cuota Pendiente</label><select id="p_cuota">${pendingCuotaOptionsHtml(firstLine.id)}</select></div>
+        <div class="form-field full"><label>Fecha de Pago</label><input type="date" id="p_fecha"></div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Desglose del pago</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="background:var(--surface);border-bottom:2px solid var(--border);">
+              <th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--text-secondary);font-weight:600;">Concepto</th>
+              <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-secondary);font-weight:600;">Planificado</th>
+              <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-secondary);font-weight:600;">Real Pagado</th>
+              <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-secondary);font-weight:600;">Diferencia</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 10px;color:var(--blue);font-weight:600;">Amortización</td>
+              <td style="padding:8px 10px;text-align:right;" class="mono"><span id="p_cap_lbl" style="color:var(--text-secondary);">—</span></td>
+              <td style="padding:5px 10px;text-align:right;"><input type="number" id="p_cap_real" step="0.01" min="0" placeholder="0.00" style="width:120px;text-align:right;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text);font-family:monospace;"></td>
+              <td style="padding:8px 10px;text-align:right;" class="mono"><span id="p_cap_diff">—</span></td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 10px;color:#FF6600;font-weight:600;">Interés</td>
+              <td style="padding:8px 10px;text-align:right;" class="mono"><span id="p_int_lbl" style="color:var(--text-secondary);">—</span></td>
+              <td style="padding:5px 10px;text-align:right;"><input type="number" id="p_int_real" step="0.01" min="0" placeholder="0.00" style="width:120px;text-align:right;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text);font-family:monospace;"></td>
+              <td style="padding:8px 10px;text-align:right;" class="mono"><span id="p_int_diff">—</span></td>
+            </tr>
+            <tr style="background:var(--surface);font-weight:700;">
+              <td style="padding:9px 10px;">Total</td>
+              <td style="padding:9px 10px;text-align:right;" class="mono"><span id="p_tot_lbl">—</span></td>
+              <td style="padding:9px 10px;text-align:right;" class="mono"><span id="p_tot_real_lbl" style="color:var(--green);">—</span></td>
+              <td style="padding:9px 10px;text-align:right;" class="mono"><span id="p_tot_diff">—</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div id="p_varianza_alert" style="display:none;margin-top:10px;padding:9px 12px;border-radius:6px;font-size:12px;"></div>
       </div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="savePaymentBtn">${ic('plus')} Registrar</button></div>`);
 
-  let _cuotaCapital = 0, _cuotaInteres = 0;
+  let _cuotaCapital = 0, _cuotaInteres = 0, _cur = firstLine.moneda||'USD';
 
   function refreshCuotaOptions(){
     const lineaId = document.getElementById('p_linea').value;
     document.getElementById('p_cuota').innerHTML = pendingCuotaOptionsHtml(lineaId);
   }
   function fmtPay(n, cur){ const s=cur==='CRC'?'₡':'$'; return s+(n||0).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function fmtDiff(diff, cur){
+    if(diff===null||isNaN(diff)) return '—';
+    const abs = Math.abs(diff);
+    const pct = (_cuotaCapital+_cuotaInteres)>0 ? (abs/(_cuotaCapital+_cuotaInteres)*100).toFixed(1) : '0.0';
+    const sign = diff>=0?'+':'';
+    const col = Math.abs(diff)<0.01 ? 'var(--green)' : diff>0 ? '#B71C1C' : '#7F6000';
+    return `<span style="color:${col};font-size:12px;">${sign}${fmtPay(diff,cur)}</span>`;
+  }
+  function updateSaldo(){
+    const lineaId = document.getElementById('p_linea').value;
+    const line = lines.find(l=>l.id===lineaId);
+    if(line){ _cur=line.moneda||'USD'; document.getElementById('p_saldo_val').textContent=fmtPay(lineaSaldoActual(line),_cur); }
+  }
+  function updateDiffs(){
+    const capReal = parseFloat(document.getElementById('p_cap_real').value)||0;
+    const intReal = parseFloat(document.getElementById('p_int_real').value)||0;
+    const totReal = capReal + intReal;
+    document.getElementById('p_tot_real_lbl').textContent = totReal>0 ? fmtPay(totReal,_cur) : '—';
+    const hasPlan = (_cuotaCapital+_cuotaInteres)>0;
+    if(hasPlan){
+      document.getElementById('p_cap_diff').innerHTML = capReal>0 ? fmtDiff(capReal-_cuotaCapital,_cur) : '—';
+      document.getElementById('p_int_diff').innerHTML = intReal>0 ? fmtDiff(intReal-_cuotaInteres,_cur) : '—';
+      const totPlan = _cuotaCapital+_cuotaInteres;
+      const totDiff = totReal>0 ? totReal-totPlan : null;
+      document.getElementById('p_tot_diff').innerHTML = totDiff!==null ? fmtDiff(totDiff,_cur) : '—';
+      const alert = document.getElementById('p_varianza_alert');
+      if(totReal>0 && totPlan>0 && Math.abs(totDiff)/totPlan*100 > 0.5){
+        const pct = (totDiff/totPlan*100);
+        const isOver = totDiff>0;
+        alert.style.display='block';
+        alert.style.background = isOver ? '#FFF8E1' : '#FFF3F3';
+        alert.style.border = '1px solid '+(isOver ? '#FFD54F' : '#FFCDD2');
+        alert.style.color = isOver ? '#7F6000' : '#B71C1C';
+        alert.innerHTML = `⚠️ Total real difiere ${pct>=0?'+':''}${pct.toFixed(2)}% del planificado (${fmtPay(totPlan,_cur)}).`;
+      } else { alert.style.display='none'; }
+    } else {
+      document.getElementById('p_cap_diff').textContent='—';
+      document.getElementById('p_int_diff').textContent='—';
+      document.getElementById('p_tot_diff').textContent='—';
+    }
+  }
   function applySelectedCuota(){
     const lineaId = document.getElementById('p_linea').value;
     const cuotaRow = document.getElementById('p_cuota').value;
-    const des = document.getElementById('p_desglose');
-    const alert = document.getElementById('p_varianza_alert');
-    if(cuotaRow===''){ des.style.display='none'; _cuotaCapital=0; _cuotaInteres=0; return; }
+    if(cuotaRow===''){ _cuotaCapital=0; _cuotaInteres=0; document.getElementById('p_cap_lbl').textContent='—'; document.getElementById('p_int_lbl').textContent='—'; document.getElementById('p_tot_lbl').textContent='—'; updateDiffs(); return; }
     const plan = paymentPlans[lineaId]||[];
     const cuota = plan.find(p=>String(p._row)===String(cuotaRow));
-    if(!cuota){ des.style.display='none'; return; }
+    if(!cuota){ _cuotaCapital=0; _cuotaInteres=0; updateDiffs(); return; }
     const line = lines.find(l=>l.id===lineaId);
-    const cur = line?line.moneda:'USD';
-    _cuotaCapital = cuota.capital; _cuotaInteres = cuota.interes;
-    const total = cuota.capital+cuota.interes;
-    document.getElementById('p_fecha').value = cuota.fecha;
-    document.getElementById('p_monto').value = total.toFixed(2);
-    document.getElementById('p_cap_lbl').textContent = fmtPay(cuota.capital, cur);
-    document.getElementById('p_int_lbl').textContent = fmtPay(cuota.interes, cur);
-    document.getElementById('p_tot_lbl').textContent = fmtPay(total, cur);
-    des.style.display='block';
-    alert.style.display='none';
+    _cur = line?line.moneda:'USD';
+    _cuotaCapital=cuota.capital; _cuotaInteres=cuota.interes;
+    document.getElementById('p_fecha').value=cuota.fecha;
+    document.getElementById('p_cap_lbl').textContent=fmtPay(cuota.capital,_cur);
+    document.getElementById('p_int_lbl').textContent=fmtPay(cuota.interes,_cur);
+    document.getElementById('p_tot_lbl').textContent=fmtPay(cuota.capital+cuota.interes,_cur);
+    document.getElementById('p_cap_real').value=cuota.capital.toFixed(2);
+    document.getElementById('p_int_real').value=cuota.interes.toFixed(2);
+    updateDiffs();
   }
-  function checkVarianza(){
-    const montoEl = document.getElementById('p_monto');
-    const alert = document.getElementById('p_varianza_alert');
-    if(!montoEl || !alert || _cuotaCapital+_cuotaInteres===0){ if(alert) alert.style.display='none'; return; }
-    const monto = parseFloat(montoEl.value)||0;
-    const esperado = _cuotaCapital+_cuotaInteres;
-    if(esperado===0){ alert.style.display='none'; return; }
-    const diff = monto - esperado;
-    const pct = Math.abs(diff/esperado)*100;
-    if(pct < 0.5){ alert.style.display='none'; return; }
-    const propInt = esperado>0 ? (_cuotaInteres/esperado) : 0;
-    const intEstimado = monto * propInt;
-    const intDiff = intEstimado - _cuotaInteres;
-    const sign = diff>0 ? '+' : '';
-    const lineaId = document.getElementById('p_linea').value;
-    const line = lines.find(l=>l.id===lineaId);
-    const cur = line?line.moneda:'USD';
-    const isOver = diff>0;
-    alert.style.display='block';
-    alert.style.background = isOver ? '#FFF8E1' : '#FFF3F3';
-    alert.style.border = '1px solid '+(isOver ? '#FFD54F' : '#FFCDD2');
-    alert.style.color = isOver ? '#7F6000' : '#B71C1C';
-    alert.innerHTML = `⚠️ Monto difiere ${sign}${pct.toFixed(1)}% del planificado (${fmtPay(esperado,cur)}).`
-      + ` Interés estimado: ${fmtPay(intEstimado,cur)} (diferencia: ${intDiff>=0?'+':''}${fmtPay(intDiff,cur)}).`;
-  }
-  document.getElementById('p_linea').addEventListener('change', ()=>{ refreshCuotaOptions(); applySelectedCuota(); });
+  document.getElementById('p_linea').addEventListener('change', ()=>{ updateSaldo(); refreshCuotaOptions(); applySelectedCuota(); });
   document.getElementById('p_cuota').addEventListener('change', applySelectedCuota);
-  document.getElementById('p_monto').addEventListener('input', checkVarianza);
+  document.getElementById('p_cap_real').addEventListener('input', updateDiffs);
+  document.getElementById('p_int_real').addEventListener('input', updateDiffs);
+  updateSaldo();
   applySelectedCuota();
   document.getElementById('savePaymentBtn').addEventListener('click', ()=>{
     const lineaId = document.getElementById('p_linea').value;
     const fecha = document.getElementById('p_fecha').value;
-    const monto = parseFloat(document.getElementById('p_monto').value)||0;
+    const capReal = parseFloat(document.getElementById('p_cap_real').value)||0;
+    const intReal = parseFloat(document.getElementById('p_int_real').value)||0;
+    const monto = capReal + intReal;
     const cuotaRow = document.getElementById('p_cuota').value;
     if(!fecha){ toast('Selecciona la fecha de pago.', true); return; }
-    if(monto<=0){ toast('Ingresa un monto válido.', true); return; }
-    const btn = document.getElementById('savePaymentBtn'); btn.disabled = true;
-    callServer('registrarPago', [{ lineaId, fecha, monto, cuotaRow: cuotaRow ? Number(cuotaRow) : null }], res=>{
+    if(monto<=0){ toast('Ingresa al menos el monto de amortización o interés.', true); return; }
+    const btn = document.getElementById('savePaymentBtn'); btn.disabled=true;
+    callServer('registrarPago', [{ lineaId, fecha, monto, capitalReal: capReal, interesReal: intReal, cuotaRow: cuotaRow ? Number(cuotaRow) : null }], res=>{
       closeModal(); reloadData(()=>{ renderContent(); toast('Pago '+res.id+' registrado.'); });
-    }, ()=>{ btn.disabled = false; });
+    }, ()=>{ btn.disabled=false; });
   });
 }
 function openBulkUploadModal(){
