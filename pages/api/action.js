@@ -9,6 +9,7 @@ import {
   crearLinea,
   registrarPago,
   cargaMasivaCuotas,
+  reemplazarPlanPagos,
   archivarLinea,
   importarActivas,
   importarCanceladas,
@@ -51,6 +52,9 @@ export default async function handler(req, res) {
         break;
       case 'cargaMasivaCuotas':
         result = await cargaMasivaCuotas(email, args[0], args[1]);
+        break;
+      case 'reemplazarPlanPagos':
+        result = await reemplazarPlanPagos(email, args[0], args[1]);
         break;
       case 'archivarLinea':
         result = await archivarLinea(email, args[0]);
