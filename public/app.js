@@ -80,7 +80,7 @@ function estadoLinea(l){
   if(saldo<=0 && (paymentPlans[l.id]||[]).length) return {label:'Cancelada', cls:'badge-green'};
   if(dv!==null && dv<0) return {label:'Vencida', cls:'badge-red', detail:'hace '+Math.abs(dv)+' día(s)'};
   if(dp!==null && dp>=0 && dp<7) return {label:'Activa', cls:'badge-amber', detail:'en '+dp+' día(s)'};
-  return {label:'Activa', cls:'badge-blue', detail: dv!==null ? ('vence en '+dv+' días') : ''};
+  return {label:'Activa', cls:'badge-blue', detail: dv!==null ? ('vence en '+ds+' días') : ''};
 }
 function leasingSaldoActual(contrato){
   const plan = leasingPagos[contrato.id]||[];
@@ -111,6 +111,7 @@ let state = {
   datosSearch: '',
   historicoTab: 'canceladas',
   deudaGranularidad: 'mes',
+  proyeccionFiltro: 'futuro',
   lineEstadoFilter: '', pagoEstadoFilter: '', histEstadoFilter: '', leasingEstadoFilter: '',
   monedaFilter: '', tipoFilter: '',
 };
@@ -177,7 +178,7 @@ function reloadData(cb, hintEmail){
   })
   .then(r => r.json())
   .then(res => {
-    if (!res.success) { toast(res.error || 'No se pudo actualizar la información.', true); return; }
+    if(!res.success) { toast(res.error || 'No se pudo actualizar la información.', true); return; }
     const data = res.data;
     if(!data.authorized){ renderDenied(data.email); return; }
     applyBootstrap(data);
@@ -226,7 +227,7 @@ function boot(){
   });
 }
 
-/* ================= LAYOUT SHELL ================= */
+/* ================= LAVOUT SHECLL ================= */
 function renderShell(){
   const app = document.getElementById('app');
   app.innerHTML = `
@@ -347,7 +348,7 @@ function renderContent(){
 
 /* ================= DASHBOARD ================= */
 function computeKPIs(){
-  const linesUSD = lines.reduce((s,l)=>s+toUSD(lineaSaldoActual(l),l.moneda),0);
+  const linesUSD= lines.reduce((s,l)=>s+toUSD(lineaSaldoActual(l),l.moneda),0);
   const leasingUSD = leasingContratos.reduce((s,l)=>s+toUSD(leasingSaldoActual(l),l.moneda),0);
   const dispuestoUSD = linesUSD + leasingUSD;
   const bankRows = bankExposureRows();
@@ -378,10 +379,9 @@ function bankExposureRows(){
   Object.keys(bankLimits).forEach(b=>{ if(!map[b]) map[b]={dispuestoUSD:0}; });
   return Object.entries(map).map(([banco,v])=>{
     const limiteUSD = bankLimits[banco] ?? v.dispuestoUSD;
-        const reservaUSD = BANK_RESERVES[banco] || 0;
+        const reservaUSD = BACK_RESERVES[banco] || 0;
             return {
-                  banco, aprobadoUSD:limiteUSD, dispuestoUSD:v.dispuestoUSD, disponibleUSD:limiteUSD-v.dispuestoUSD-reservaUSD,
-                        util: limiteUSD ? Math.round((v.dispuestoUSD+reservaUSD)/limiteUSD*100) : 0
+                  banco, aprobadoUSD:limiteUSD, dispuestoUSD:v.dispuestoUSD, disponibleUSD:limiteUSD-v.dispuestoUSD-reservaUSD ~~ NaN ? limiteUSD-v.dispuestoUSD-reservaUSD : 0, util: limiteUSD ? Math.round((v.dispuestoUSD+reservaUSD)/limiteUSD*100) : 0
     };
   }).sort((a,b)=>b.dispuestoUSD-a.dispuestoUSD);
 }
@@ -529,6 +529,11 @@ function limitesLineasHtml(){
       </div>
     </div>`;
 }
+function dashboardHtml(){text-right mono">${fmtUSD(totalUsado)}</td><td class="text-right mono">${fmtUSD(totalDisponible)}</td></tr>
+        </tbody></table>
+      </div>
+    </div>`;
+}
 function pagosUltimoMesHtml(){
   const pagos = paymentsLastMonth();
   return `
@@ -596,7 +601,7 @@ function linesHtml(){
     </div>`;
 }
 function lineRowHtml(l){
-  if(l._cancelada){ return `<tr data-id="${l.id}" data-cancelada="1"><td><b>${l.numOp||l.id}</b><div class="text-muted" style="font-size:10.5px;">${l.id}</div></td><td>${l.banco}</td><td>${l.tipo}</td><td><span class="badge badge-gray">${l.moneda}</span></td><td class="text-right mono">${fmtNative(l.aprobado,l.moneda)}</td><td class="text-right mono">${fmtNative(0,l.moneda)}</td><td><span class="progress-bar-track"><span class="progress-bar-fill" style="width:100%"></span></span><span class="text-muted">100%</span></td><td class="text-right mono">${l.tasa||0}.toFixed(2)}%</td><td>${l.vencimiento}</td><td><span class="badge badge-gray">Cancelada</span></td></tr>`; }
+  if(l._cancelada){ return `<tr data-id="${l.id}" data-cancelada="1"><td><b>${l.numOp||l.id}</b><div class="text-muted" style="font-size:10.5px;">${l.id}</div></td><td>${l.banco}</td><td>${l.tipo}</td><td><span class="badge badge-gray">${l.moneda}</span></td><td class="text-right mono">${fmtNative(l.aprobado,l.moneda)}</td><td class="text-right mono">${fmtNative(0,l.moneda)}</td><td><span class="progress-bar-track"><span class="progress-bar-fill" style="width:100%"></span></span><span class="text-muted">100%</span></td><td class="text-right mono">${l.tasa?.l.tasa.toFixed(2):'0'}%</td><td>${l.vencimiento}</td><td><span class="badge badge-gray">Cancelada</span></td></tr>`; }
   const est = estadoLinea(l);
   const saldo = lineaSaldoActual(l);
   const util = l.aprobado ? Math.round((saldo/l.aprobado)*100) : 0;
@@ -640,7 +645,7 @@ function opsHtml(){
                                                                                                                                                                                 <tbody>
                                                                                                                                                                                               ${planEntries.map(({lid,p})=>{ const line=lines.find(l=>l.id===lid); const cur=line?line.moneda:'USD'; return `
                                                                                                                                                                                                               <tr><td><b>${line?.numOp||lid}</b></td><td>${p.fecha}</td><td class="text-right mono">${fmtNative(p.capital,cur)}</td><td class="text-right mono">${fmtNative(p.interes,cur)}</td>
-                                                                                                                                                                                                                               <td><span class="badge ${p.estado==='Pagado'?'badge-green':'badge-amber'}">${p.estado}</span></td></tr>`; }).join('') || '<tr><td colspan="5"><div class="empty-state">Sin planes de pago que coincidan con el filtro.</div></td></tr>'}
+                                                                                                                                                                                                                              <td><span class="badge ${p.estado==='Pagado'?'badge-green':'badge-amber'}">${p.estado}</span></td></tr>`; }).join('') || '<tr><td colspan="5"><div class="empty-state">Sin planes de pago que coincidan con el filtro.</div></td></tr>'}
                                                                                                                                                                                                                                           </tbody>
                                                                                                                                                                                                                                                     </table>
                                                                                                                                                                                                                                                             </div>
@@ -889,37 +894,94 @@ function proyeccionesRows(){
   }));
 }
 function proyeccionesHtml(){
-    const rows = proyeccionesRows();
-      return `
-          <div class="table-card">
-                <div class="panel-header-dark">${ic('trending')}<span>Proyección Mensual de Servicio de Deuda</span><div class="spacer"></div><span style="text-transform:none;font-weight:600;opacity:.8;">Capital + Interés por mes y moneda</span></div>
-                      <div class="table-scroll" style="max-height:calc(100vh - 220px);">
-                              <table><thead><tr><th>Mes</th><th class="text-right">Capital CRC</th><th class="text-right">Interés CRC</th><th class="text-right">Capital USD</th><th class="text-right">Interés USD</th><th class="text-right">Total (${state.currency})</th><th>Estado</th></tr></thead>
-                                      <tbody>${rows.map(r=>{
-                                                const totalUSD = toUSD(r.capitalCRC+r.interesCRC,'CRC') + toUSD(r.capitalUSD+r.interesUSD,'USD');
-                                                          return `<tr><td><b>${r.mes}</b></td><td class="text-right mono">₡${r.capitalCRC.toLocaleString('es-CR',{maximumFractionDigits:0})}</td><td class="text-right mono">₡${r.interesCRC.toLocaleString('es-CR',{maximumFractionDigits:0})}</td><td class="text-right mono">$${r.capitalUSD.toLocaleString('es-CR',{maximumFractionDigits:0})}</td><td class="text-right mono">$${r.interesUSD.toLocaleString('es-CR',{maximumFractionDigits:0})}</td><td class="text-right mono"><b>${fmtUSD(totalUSD)}</b></td><td><span class="badge ${r.estado==='Pagado'?'badge-green':(r.estado==='Parcial'?'badge-amber':'badge-blue')}">${r.estado}</span></td></tr>`;
-                                                                  }).join('') || '<tr><td colspan="7"><div class="empty-state">Sin cuotas cargadas todavía. Importa historial o crea líneas/leasing con plan de pagos para ver la proyección.</div></td></tr>'}</tbody></table>
-                                                                        </div>
-                                                                            </div>`;
+  const filtro = state.proyeccionFiltro || 'futuro';
+  const mesActual = now0.toISOString().slice(0,7);
+  let rows = proyeccionesRows();
+  if(filtro==='futuro') rows = rows.filter(r => r.mes >= mesActual);
+  else if(filtro==='proyectado') rows = rows.filter(r => r.estado==='Proyectado' || r.estado==='Parcial');
+
+  const tot = rows.reduce((s,r)=>({
+    capitalCRC: s.capitalCRC+r.capitalCRC, interesCRC: s.interesCRC+r.interesCRC,
+    capitalUSD: s.capitalUSD+r.capitalUSD, interesUSD: s.interesUSD+r.interesUSD
+  }), {capitalCRC:0,interesCRC:0,capitalUSD:0,interesUSD:0});
+  const totUSD = toUSD(tot.capitalCRC+tot.interesCRC,'CRC') + toUSD(tot.capitalUSD+tot.interesUSD,'USD');
+
+  const fBtn = (key, label) => `<button class="btn${filtro===key?' btn-primary':''}" data-pfiltro="${key}" style="font-size:12px;padding:4px 10px;">${label}</button>`;
+
+  const kpiRow = `<div class="kpi-grid" style="margin-bottom:12px;">
+    <div class="kpi-card"><span class="kpi-label">Total Capital (prox. ${rows.filter(r=>r.estado!=='Pagado').length} meses)</span>
+      <div class="kpi-value" style="font-size:18px;">₡${(tot.capitalCRC).toLocaleString('es-CR',{maximumFractionDigits:0})}</div>
+      ${tot.capitalUSD ? `<div class="kpi-sub">$${tot.capitalUSD.toLocaleString('es-CR',{maximumFractionDigits:0})}</div>` : ''}
+    </div>
+    <div class="kpi-card"><span class="kpi-label">Total Interés</span>
+      <div class="kpi-value" style="font-size:18px;color:#C55A11;">₡${(tot.interesCRC).toLocaleString('es-CR',{maximumFractionDigits:0})}</div>
+      ${tot.interesUSD ? `<div class="kpi-sub" style="color:#C55A11;">$${tot.interesUSD.toLocaleString('es-CR',{maximumFractionDigits:0})}</div>` : ''}
+    </div>
+    <div class="kpi-card"><span class="kpi-label">Total Servicio de Deuda (${state.currency})</span>
+      <div class="kpi-value" style="font-size:18px;color:#1F3864;">${fmtUSD(totUSD)}</div>
+    </div>
+  </div>`;
+
+  return `${kpiRow}
+  <div class="table-card">
+    <div class="panel-header-dark" style="flex-wrap:wrap;gap:8px;">
+      ${ic('trending')}<span>Proyección Mensual de Servicio de Deuda</span>
+      <div class="spacer"></div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        ${fBtn('futuro','Desde hoy')}${fBtn('proyectado','Pendientes')}${fBtn('todos','Histórico completo')}
+      </div>
+    </div>
+    <div class="table-scroll" style="max-height:calc(100vh - 280px);">
+      <table><thead><tr>
+        <th>Mes</th>
+        <th class="text-right">Capital CRC</th><th class="text-right">Interés CRC</th>
+        <th class="text-right">Capital USD</th><th class="text-right">Interés USD</th>
+        <th class="text-right">Total (${state.currency})</th><th>Estado</th>
+      </tr></thead>
+      <tbody>${rows.map((r,i)=>{
+        const totalUSD = toUSD(r.capitalCRC+r.interesCRC,'CRC') + toUSD(r.capitalUSD+r.interesUSD,'USD');
+        const isHoy = r.mes === mesActual;
+        return `<tr class="${i%2?'alt-row':''}" style="${isHoy?'outline:2px solid #0070C0;outline-offset:-2px;':''}">
+          <td><b>${r.mes}${isHoy?' <span style="color:#0070C0;font-size:10px;">◀ HOY</span>':''}</b></td>
+          <td class="text-right mono">₡${r.capitalCRC.toLocaleString('es-CR',{maximumFractionDigits:0})}</td>
+          <td class="text-right mono">₡${r.interesCRC.toLocaleString('es-CR',{maximumFractionDigits:0})}</td>
+          <td class="text-right mono">$${r.capitalUSD.toLocaleString('es-CR',{maximumFractionDigits:0})}</td>
+          <td class="text-right mono">$${r.interesUSD.toLocaleString('es-CR',{maximumFractionDigits:0})}</td>
+          <td class="text-right mono"><b>${fmtUSD(totalUSD)}</b></td>
+          <td><span class="badge ${r.estado==='Pagado'?'badge-green':(r.estado==='Parcial'?'badge-amber':'badge-blue')}">${r.estado}</span></td>
+        </tr>`;
+      }).join('') || `<tr><td colspan="7"><div class="empty-state">Sin cuotas cargadas. Importá historial o creá líneas con plan de pagos.</div></td></tr>`}
+      <tr style="font-weight:700;background:var(--sidebar-bg);color:var(--text);">
+        <td>TOTAL</td>
+        <td class="text-right mono">₡${tot.capitalCRC.toLocaleString('es-CR',{maximumFractionDigits:0})}</td>
+        <td class="text-right mono">₡${tot.interesCRC.toLocaleString('es-CR',{maximumFractionDigits:0})}</td>
+        <td class="text-right mono">$${tot.capitalUSD.toLocaleString('es-CR',{maximumFractionDigits:0})}</td>
+        <td class="text-right mono">$${tot.interesUSD.toLocaleString('es-CR',{maximumFractionDigits:0})}</td>
+        <td class="text-right mono">${fmtUSD(totUSD)}</td>
+        <td></td>
+      </tr>
+      </tbody></table>
+    </div>
+  </div>`;
                                                                             }
                                                                             function tendenciaDeudaPeriods(gran){ const periods = []; const now = new Date(); now.setHours(0,0,0,0); if(gran==='anio'){ const curYear = now.getFullYear(); for(let y=curYear-4; y<=curYear; y++){ const start = new Date(y,0,1); const end = (y===curYear) ? now : new Date(y,11,31); periods.push({ label: String(y), start, end }); } } else { const base = new Date(now.getFullYear(), now.getMonth(), 1); for(let i=11;i>=0;i--){ const d = new Date(base.getFullYear(), base.getMonth()-i, 1); const end = new Date(d.getFullYear(), d.getMonth()+1, 0); periods.push({ label: end.toISOString().slice(0,7), start: d, end }); } } return periods; }
                                                                             function tendenciaDeudaRows(gran){ const now = new Date(); now.setHours(0,0,0,0); const curPeriodo = now.toISOString().slice(0,7); const periods = tendenciaDeudaPeriods(gran||'mes'); return periods.map(p=>{ if(gran!=='anio' && historicoDeuda[p.label] && p.label < curPeriodo){ return { periodo: p.label, totalUSD: historicoDeuda[p.label], esReal: true }; } const cutoff = new Date(p.end); let totalUSD = 0; lines.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const plan = paymentPlans[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.aprobado||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); lineasCanceladas.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); const fin = new Date(l.vencimiento+'T00:00:00'); if(inicio > cutoff) return; if(fin <= cutoff) return; const pagadoHasta = history.filter(h=>h.linea===l.id && new Date(h.fecha+'T00:00:00') <= cutoff).reduce((s,h)=>s+h.monto,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); leasingContratos.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const fin = new Date(l.vencimiento+'T00:00:00'); if(fin <= cutoff) return; const plan = leasingPagos[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); return { periodo: p.label, totalUSD, esReal: false }; }); }
                                                                             function tendenciaDeudaHtml(){
                                                                                                                                                                                                           const gran = state.deudaGranularidad || 'mes';
                                                                                                                                                                                                             const rows = tendenciaDeudaRows(gran);
-                                                                                                                                                                                                              return `
-                                                                                                                                                                                                                  <div class="table-card">
+                                                                                                                                                                                                                return `
+                                                                                                                                                                                                                        <div class="table-card">
                                                                                                                                                                                                                         <div class="panel-header-dark">${ic('trending')}<span>Tendencia de Deuda Total</span><div class="spacer"></div>
-                                                                                                                                                                                                                                <select class="tb-select" id="deudaGranSel" style="min-width:140px;margin:0;">
-                                                                                                                                                                                                                                           <option value="mes" ${gran==='mes'?'selected':''}>Vista Mensual</option>
-                                                                                                                                                                                                                                                     <option value="anio" ${gran==='anio'?'selected':''}>Vista Anual</option>
+                                                                                                                                                                                                                              <select class="tb-select" id="deudaGranSel" style="min-width:140px;margin:0;">
+                                                                                                                                                                                                                                          <option value="mes" ${gran==='mes'?'selected':''}>Vista Mensual</option>
+                                                                                                                                                                                                                                                    <option value="anio" ${gran==='anio'?'selected':''}>Vista Anual</option>
                                                                                                                                                                                                                                                             </select>
-                                                                                                                                                                                                                                                                </div>
+                                                                                                                                                                                                                                                                  </div>
                                                                                                                                                                                                                                                                         <div class="table-scroll" style="max-height:260px;overflow-x:auto;">
                                                                                                                                                                                                                                                                                 <table>
                                                                                                                                                                                                                                                                                           <thead><tr><th style="min-width:180px;">Concepto</th>${rows.map(r=>`<th class="text-right">${r.periodo}</th>`).join('')}</tr></thead>
                                                                                                                                                                                                                                                                                                     <tbody><tr><td><b>Saldo Total de Deuda (${state.currency})</b></td>${rows.map(r=>`<td class="text-right mono">${fmtUSD(r.totalUSD)}</td>`).join('') || `<td><div class="empty-state">Sin datos.</div></td>`}</tr></tbody>
-                                                                                                                                                                                                                                                                                                            </table>
+                                                                                                                                                                                                                                                                                                                  </table>
                                                                                                                                                                                                                                                                                                                   </div>
                                                                                                                                                                                                                                                                                                                       </div>`;
                                                                                                                                                                                                                                                                                                                       }
@@ -1169,13 +1231,13 @@ function interesesMesesOpciones(selAnio, selMes){
     var a = d.getFullYear(), m = d.getMonth()+1;
     var val = a+'-'+m, lbl = meses[m-1]+' '+a;
     var sel = (a===selAnio && m===selMes) ? ' selected' : '';
-    opts += '<option value="'+val+'" '+sel+'>'+lbl+'</option>';
+    opts += '<option value="'+val+'"'+sel+'>'+lbl+'</option>';
   }
   return opts;
 }
 
 function interesesHtml(d){
-  const {periodos, totales: tot, causado, jecutado, proyeccion} = d;
+  const {periodos, totales: tot, causado, ejecutado, proyeccion} = d;
   const pAnt = periodos.causado.label;
   const pSig = periodos.proyeccion.label;
   const selAnio = periodos.causado.anio, selMes = periodos.causado.mes;
@@ -1254,7 +1316,7 @@ function interesesHtml(d){
         extraCols += '<td class="text-center">' + (f.hasta||'') + '</td>';
         extraCols += '<td class="text-right mono">' + (f.dias||0) + '</td>';
       } else {
-        extraCols += '<td class="text-center">' + (f.fecha||'') + '</td>';
+        extraCols += '<td class="text-center">' + (f.fecha||'') + '</div>';
       }
       return '<tr class="' + (i%2?'alt-row':'') + '">'
         + '<td>' + f.banco + '</td>'
@@ -1271,8 +1333,8 @@ function interesesHtml(d){
       + '</div></div>';
   }
 
-  const colsCausado = [{label:'Banco'},{label:'N° Operación',cls:'mono'},{label:'Moneda'},{label:'Capital',cls:'text-right'},{label:'Tasa',cls:'text-right'},{label:'Últ. Pago',cls:'text-center'},{label:'Desde',cls:'text-center'},{label:'Hasta',cls:'text-center'},{label:'Días',cls:'text-right'},{label:'Interés Causado',cls:'text-right'}];
-  const colsEjec   = [{label:'Banco'},{label:'N° Operación',cls:'mono'},{label:'Moneda'},{label:'Fecha Pago',cls:'text-center'},{label:'Interés Pagado',cls:'text-right'}];
+  const colsCausado = [{label:'Banco'},{label:'N° Operación',cls:'}mono'},{label:'Moneda'},{label:'Capital',cls:'text-right'},{label:'Tasa',cls:'text-right'},{label:'Últ. Pago',cls:'text-center'},{label:'Desde',cls:'text-center'},{label:'Hasta',cls:'text-center'},{label:'Días',cls:'text-right'},{label:'Interés Causado',cls:'text-right'}];
+  const colsEjec   = [{label:'Banco'},{label:'N° Operación',cls:'}mono'},{label:'Moneda'},{label:'Fecha Pago',cls:'text-center'},{label:'Interés Pagado',cls:'text-right'}];
   const colsProy   = [{label:'Banco'},{label:'N° Operación',cls:'mono'},{label:'Moneda'},{label:'Capital',cls:'text-right'},{label:'Tasa',cls:'text-right'},{label:'Desde',cls:'text-center'},{label:'Hasta',cls:'text-center'},{label:'Días',cls:'text-right'},{label:'Interés Proyectado',cls:'text-right'}];
 
   const tCausado    = tablaIntereses(causado,    colsCausado, `Interés Causado — ${pAnt}`,    '#1F3864');
@@ -1461,9 +1523,12 @@ function bindContentEvents(){
       toast('Archivo CSV exportado.');
     });
   }
-    document.querySelectorAll('[data-delp]').forEach(btn=>{ btn.addEventListener('click', e=>{ e.stopPropagation(); guard(()=>{ if(!confirm('¿Eliminar este pago? Esta acción no se puede deshacer.')) return; callServer('eliminarPago', [btn.dataset.delp], ()=>{ reloadData(()=>{ renderContent(); toast('Pago eliminado.'); }); }); }); }); });
+    document.querySelectorAll('[data-delp]').forEach(btn=>{ btn.addEventListener('click', e=>{ e.stopPropagation(); guard(()=>{ if(!confirm('w�Eliminar este pago? Esta acción no se puede deshacer.')) return; callServer('eliminarPago', [btn.dataset.delp], ()=>{ reloadData(()=>{ renderContent(); toast('Pago eliminado.'); }); }); }); }); });
   if(state.activeModule==='reportes'){
     document.querySelectorAll('[data-report]').forEach(btn=>{ btn.addEventListener('click', ()=> runReport(btn.dataset.report)); });
+  }
+  if(state.activeModule==='proyecciones'){
+    document.querySelectorAll('[data-pfiltro]').forEach(btn=>{ btn.addEventListener('click', ()=>{ state.proyeccionFiltro=btn.dataset.pfiltro; renderContent(); }); });
   }
   if(state.activeModule==='centrodatos'){
     document.getElementById('datosSearchInput').addEventListener('input', e=>{ state.datosSearch=e.target.value; renderContent(); });
