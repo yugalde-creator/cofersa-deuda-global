@@ -44,7 +44,7 @@ let FX = { USD: 1, CRC: 462.56 };
 let bankLimits = {};
 // Monto de cada línea reservado para otros usos (p.ej. disponible de tarjetas de crédito
 // y leasing) y que por lo tanto NUNCA debe contarse como disponible para nuevos desembolsos.
-// BAC: de los $2,000,000 de límite, $100,000 están reservados para tarjetas de crédito y leasing.
+// BAC: de los $2,000,000 de lémite, $100,000 están reservados para tarjetas de crédito y leasing.
 const BANK_RESERVES = { 'BAC': 100000 };
 
 let lines = [];
@@ -397,7 +397,7 @@ function bankExposureRows(){
     const limiteUSD = bankLimits[banco] ?? v.dispuestoUSD;
         const reservaUSD = BACK_RESERVES[banco] || 0;
             return {
-                  banco, aprobadoUSD:limiteUSD, dispuestoUSD:v.dispuestoUSD, disponibleUSD:limiteUSD-v.dispuestoUSD-reservaUSD ~~ NaN ? limiteUSD-v.dispuestoUSD-reservaUSD : 0, util: limiteUSD ? Math.round((v.dispuestoUSD+reservaUSD)/limiteUSD*100) : 0
+                  banco, aprobadoUSD:limiteUSD, dispuestoUSD:v.dispuestoUSD, disponibleUSD:limiteUSD-v.dispuestoUSD-reservaUSD ?? NaN ? limiteUSD-v.dispuestoUSD-reservaUSD : 0, util: limiteUSD ? Math.round((v.dispuestoUSD+reservaUSD)/limiteUSD*100) : 0
     };
   }).sort((a,b)=>b.dispuestoUSD-a.dispuestoUSD);
 }
@@ -758,7 +758,9 @@ function openNewLineScheduleModal(){
     const desembolso = document.getElementById('s_desembolso').value;
     if(!numOp){ toast('Ingresa el N° de Operación.', true); return; }
     if(monto<=0){ toast('Ingresa un monto válido.', true); return; }
-    if(plazo<=0 || plazo>360){ toast('El plazo debe estar estar estar entre 1 y 360 meses.', true); return; }
+    if(plazo<=0 || plazo>360){ toast('El plazo debe estar entre 1 y 360 meses.', true); return; }
+    if(!primerPago){ toast('Selecciona la fecha del primer pago.', true); return; }
+ntre 1 y 360 meses.', true); return; }
     if(!primerPago || !desembolso){ toast('Completa las fechas de desembolso y primer pago.', true); return; }
     scheduleData = calcularAmortizacion(monto, tasa, plazo, primerPago);
     scheduleData.banco = banco; scheduleData.numOp = numOp; scheduleData.monto = monto; scheduleData.moneda = moneda; scheduleData.tasa = tasa; scheduleData.plazo = plazo; scheduleData.desembolso = desembolso; scheduleData.primerPago = primerPago;
@@ -885,8 +887,8 @@ function calendarioHtml(){
     </div>
     <div class="table-card" style="margin-top:14px;">
       <div class="panel-header-dark">${ic('clock')}<span>${state.calSelectedDate ? 'Eventos del '+state.calSelectedDate : 'Selecciona un día para ver el detalle'}</span></div>
-      <div clas="table-scroll" style="max-height:380px;">
-        <table><thead><tr><th>Origen</th><th>Referencia</th><th>Banco</th><th class="text-right">Amortización</th><th class="text-right">Interés:</th><th class="text-right">Total</th><th>Estado</th></tr></thead>
+      <div class="table-scroll" style="max-height:380px;">
+        <table><thead><tr><th>Origen</th><th>Referencia</th><th>Banco</th><th class="text-right">Amortización</th><th class="text-right">Interés</th><th class="text-right">Total</th><th>Estado</th></tr></thead>
         <tbody>${selected.map(e=>`<tr><td>${e.origen}</td><td><b>${e.numOp||e.ref}</b><div class="text-muted" style="font-size:10px;">${e.ref}</div></td><td>${e.banco}</td><td class="text-right mono">${e.capital>0?fmtNative(e.capital,e.moneda):'—'}</td><td class="text-right mono">${e.interes>0?fmtNative(e.interes,e.moneda):'—'}</td><td class="text-right mono"><b>${fmtNative(e.capital+e.interes+e.extra,e.moneda)}</b></td><td><span class="badge ${e.estado==='Vencimiento'?'badge-red':'badge-amber'}">${e.estado}</span></td></tr>`).join('') || '<tr><td colspan="7"><div class="empty-state">Sin eventos este día.</div></td></tr>'}</tbody></table>
       </div>
     </div>`;
@@ -905,7 +907,7 @@ function proyeccionesRows(){
     if(c.moneda==='CRC'){ map[mk].capitalCRC+=c.capital; map[mk].interesCRC+=c.interes; }
     else { map[mk].capitalUSD+=c.capital; map[mk].interesUSD+=c.interes; }
   });
-  return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([mk_v])=>({
+  return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([mk,v])=>({
     mes:mk, ...v, estado: v.pendientes===0 ? 'Pagado' : (v.pendientes===v.total ? 'Proyectado' : 'Parcial')
   }));
 }
@@ -981,18 +983,16 @@ function proyeccionesHtml(){
   </div>`;
                                                                             }
                                                                             function tendenciaDeudaPeriods(gran){ const periods = []; const now = new Date(); now.setHours(0,0,0,0); if(gran==='anio'){ const curYear = now.getFullYear(); for(let y=curYear-4; y<=curYear; y++){ const start = new Date(y,0,1); const end = (y===curYear) ? now : new Date(y,11,31); periods.push({ label: String(y), start, end }); } } else { const base = new Date(now.getFullYear(), now.getMonth(), 1); for(let i=11;i>=0;i--){ const d = new Date(base.getFullYear(), base.getMonth()-i, 1); const end = new Date(d.getFullYear(), d.getMonth()+1, 0); periods.push({ label: end.toISOString().slice(0,7), start: d, end }); } } return periods; }
-                                                                            function tendenciaDeudaRows(gran){ const now = new Date(); now.setHours(0,0,0,0); const curPeriodo = now.toISOString().slice(0,7); const periods = tendenciaDeudaPeriods(gran||'mes'); return periods.map(p=>{ if(gran!=='anio' && historicoDeuda[p.label] && p.label < curPeriodo){ return { periodo: p.label, totalUSD: historicoDeuda[p.label], esReal: true }; } const cutoff = new Date(p.end); let totalUSD = 0; lines.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const plan = paymentPlans[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.aprobado||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); lineasCanceladas.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); const fin = new Date(l.vencimiento+'T00:00:00'); if(inicio > cutoff) return; if(fin <= cutoff) return; const pagadoHasta = history.filter(h=>h.linea===l.id && new Date(h.fecha+'T00:00:00') <= cutoff).reduce((s,h)=>s+h.monto,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); leasingContratos.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const fin = new Date(l.vencimiento+'T00:00:00'); if(fin <= cutoff) return; const plan = leasingPagos[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); return { periodo: p.label, totalUSD, esReal: false }; }); }
-                                                                            function tendenciaDeudaHtml(){
-                                                                                                                                                                                                          const gran = state.deudaGranularidad || 'mes';
-                                                                                                                                                                                                            const rows = tendenciaDeudaRows(gran);
+                                                                            function tendenciaDeudaRows(gran){ const now = new Date(); now.setHours(0,0,0,0); const curPeriodo = now.toISOString().slice(0,7); const periods = tendenciaDeudaPeriods(gran||'mes'); return periods.map(p=>{ if(gran!=='anio' && historicoDeuda[p.label] && p.label < curPeriodo){ return { periodo: p.label, totalUSD: historicoDeuda[p.label], esReal: true }; } const cutoff = new Date(p.end); let totalUSD = 0; lines.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const plan = paymentPlans[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.aprobado||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); lineasCanceladas.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); const fin = new Date(l.vencimiento+'T00:00:00'); if(inicio > cutoff) return; if(fin <= cutoff) return; const pagadoHasta = history.filter(h=>h.linea===l.id && new Date(h.fecha+'T00:00:00') <= cutoff).reduce((s,h)=>s+h.monto,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); leasingContratos.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const fin = new Date(l.vencimiento+'T00:00:00'); if(fin <= cutoff) return; const plan = leasingPagos[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); return { periodo: p.label, totalUSD, esReal: false }; }); }            const rows = tendenciaDeudaRows(gran);
                                                                                                                                                                                                                 return `
                                                                                                                                                                                                                         <div class="table-card">
                                                                                                                                                                                                                         <div class="panel-header-dark">${ic('trending')}<span>Tendencia de Deuda Total</span><div class="spacer"></div>
                                                                                                                                                                                                                               <select class="tb-select" id="deudaGranSel" style="min-width:140px;margin:0;">
                                                                                                                                                                                                                                           <option value="mes" ${gran==='mes'?'selected':''}>Vista Mensual</option>
                                                                                                                                                                                                                                                     <option value="anio" ${gran==='anio'?'selected':''}>Vista Anual</option>
-                                                                                                                                                                                                                                                                                          </select>
-                                                                                                                                                                                                                                                                                                                      <div class="table-scroll" style="max-height:260px;overflow-x:auto;">
+                                                                                                                                                                                                                                                            </select>
+                                                                                                                                                                                                                                                                  </div>
+                                                                                                                                                                                                                                                                        <div class="table-scroll" style="max-height:260px;overflow-x:auto;">
                                                                                                                                                                                                                                                                                 <table>
                                                                                                                                                                                                                                                                                           <thead><tr><th style="min-width:180px;">Concepto</th>${rows.map(r=>`<th class="text-right">${r.periodo}</th>`).join('')}</tr></thead>
                                                                                                                                                                                                                                                                                                     <tbody><tr><td><b>Saldo Total de Deuda (${state.currency})</b></td>${rows.map(r=>`<td class="text-right mono">${fmtUSD(r.totalUSD)}</td>`).join('') || `<td><div class="empty-state">Sin datos.</div></td>`}</tr></tbody>
@@ -1348,183 +1348,7 @@ function interesesHtml(d){
       + '</div></div>';
   }
 
-  const colsCausado = [{label:'Banco'},{label:'N° Operación',cls:'}mono'},{label:'Moneda'},{label:'Capital',cls:'text-right'},{label:'Tasa',cls:'text-right'},{label:'Últ. Pago',cls:'text-center'},{label:'Desde',cls:'text-center'},{label:'Hasta',cls:'text-center'},{label:'Días',cls:'text-right'},{label:'Interés Causado',cls:'text-right'}];
-  const colsEjec   = [{label:'Banco'},{label:'N° Operación',cls:'}mono'},{label:'Moneda'},{label:'Fecha Pago',cls:'text-center'},{label:'Interés Pagado',cls:'text-right'}];
-  const colsProy   = [{label:'Banco'},{label:'N° Operación',cls:'mono'},{label:'Moneda'},{label:'Capital',cls:'text-right'},{label:'Tasa',cls:'text-right'},{label:'Desde',cls:'text-center'},{label:'Hasta',cls:'text-center'},{label:'Días',cls:'text-right'},{label:'Interés Proyectado',cls:'text-right'}];
-
-  const tCausado    = tablaIntereses(causado,    colsCausado, `Interés Causado — ${pAnt}`,    '#1F3864');
-  const tEjecutado  = tablaIntereses(ejecutado,  colsEjec,   `Ejecutado Real — ${pAnt}`,     '#375623');
-  const tProyeccion = tablaIntereses(proyeccion, colsProy,   `Proyección Próximo Pago — ${pSig}`, '#C55A11');
-
-  // Tabla de varianza por operación para contabilidad
-  const varMap = {};
-  causado.forEach(f=>{ const k=f.op+'|'+f.moneda; if(!varMap[k]) varMap[k]={banco:f.banco,op:f.op,moneda:f.moneda,causado:0,ejecutado:0}; varMap[k].causado+=f.interes; });
-  ejecutado.forEach(f=>{ const k=f.op+'|'+f.moneda; if(!varMap[k]) varMap[k]={banco:f.banco,op:f.op,moneda:f.moneda,causado:0,ejecutado:0}; varMap[k].ejecutado+=f.interes; });
-  const varRows = Object.values(varMap).sort((a,b)=>a.op.localeCompare(b.op));
-  const varHtml = varRows.length ? (()=>{
-    const trs = varRows.map(function(r,i){
-      const diff = r.causado - r.ejecutado;
-      const pct = r.causado>0 ? Math.abs(diff/r.causado)*100 : 0;
-      const isUsd = r.moneda==='USD';
-      const colInt = isUsd ? '#FF6600' : '#0070C0';
-      const diffCls = diff>0 ? 'color:#C00000' : (diff<0 ? 'color:#375623' : 'color:var(--text-secondary)');
-      const alertIcon = pct>15 ? '⚠️ ' : (pct>5 ? '△ ' : '');
-      return '<tr class="'+(i%2?'alt-row':'')+'">'
-        +'<td>'+r.banco+'</td>'
-        +'<td class="mono">'+r.op+'</td>'
-        +'<td><span class="badge badge-blue">'+r.moneda+'</span></td>'
-        +'<td class="text-right mono" style="color:'+colInt+';">'+fmtNum(r.causado,r.moneda)+'</td>'
-        +'<td class="text-right mono" style="color:'+colInt+';">'+fmtNum(r.ejecutado,r.moneda)+'</td>'
-        +'<td class="text-right mono" style="'+diffCls+';font-weight:600;">'+alertIcon+fmtNum(Math.abs(diff),r.moneda)+(diff>0?' (exceso)':(diff<0?' (faltante)':''))+'</td>'
-        +'<td class="text-right mono" style="'+diffCls+';">'+pct.toFixed(1)+'%</td>'
-        +'</tr>';
-    }).join('');
-    return '<div class="table-card" style="margin-bottom:16px;">'
-      +'<div class="panel-header-dark" style="background:#4A235A;">'+ ic('percent') +'<span>Varianza Causado vs Ejecutado — Por Operación (Contabilidad)</span>'
-      +'<span style="margin-left:auto;font-size:11px;opacity:.75;text-transform:none;">⚠️ >15% varianza significativa · △ >5% revisar</span></div>'
-      +'<div class="table-scroll" style="max-height:360px;">'
-      +'<table><thead><tr><th>Banco</th><th class="mono">N° Operación</th><th>Moneda</th><th class="text-right">Causado</th><th class="text-right">Ejecutado</th><th class="text-right">Diferencia</th><th class="text-right">%</th></tr></thead>'
-      +'<tbody>'+trs+'</tbody></table></div></div>';
-  })() : '';
-
-  return toolbar + kpis + difNote + tCausado + tEjecutado + tProyeccion + varHtml;
-}
-
-function moduleTitle(){
-  return {dashboard:'Panel de Control', lines:'Operaciones', calendario:'Calendario de Pagos', proyecciones:'Proyecciones', leasing:'Leasing Financiero', ops:'Conciliación', historico:'Histórico', intereses:'Apartado de Intereses', reportes:'Reportes', centrodatos:'Centro de Datos', carga:'Importar histórico', usuarios:'Usuarios', audit:'Seguridad y Auditoría'}[state.activeModule];
-}
-
-/* ================= REPORTES ================= */
-function reportesHtml(){
-  const reports = [
-    { id:'r_operaciones', nombre:'Operaciones Activas', desc:'Listado completo de líneas activas con saldos y condiciones.' },
-    { id:'r_canceladas', nombre:'Operaciones Canceladas', desc:'Histórico completo de líneas finalizadas.' },
-    { id:'r_pagos', nombre:'Pagos Históricos', desc:'Todos los pagos registrados y su estado de conciliación.' },
-    { id:'r_leasing', nombre:'Contratos de Leasing', desc:'Listado de contratos de leasing con saldo actual.' },
-    { id:'r_exposicion', nombre:'Exposición por Banco', desc:'Límite, usado y disponible por banco (moneda actual).' },
-    { id:'r_auditoria', nombre:'Bitácora de Auditoría', desc:'Historial de acciones del sistema.' },
-  ];
-  return `<div class="table-card">
-    <div class="panel-header-dark">${ic('report')}<span>Reportes</span></div>
-    <div class="import-panel" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      ${reports.map(r=>`<div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
-        <b style="font-size:13px;">${r.nombre}</b><span class="text-muted" style="font-size:11.5px;">${r.desc}</span>
-        <button class="btn" data-report="${r.id}" style="align-self:flex-start;">${ic('download')} Exportar CSV</button>
-      </div>`).join('')}
-    </div>
-  </div>`;
-}
-function runReport(id){
-  if(id==='r_operaciones') exportCSV(lines, ['id','numOp','banco','tipo','moneda','aprobado','tasa','plazo','vencimiento'], 'operaciones_activas.csv');
-  if(id==='r_canceladas') exportCSV(lineasCanceladas, ['id','numOp','banco','moneda','monto','tasa','plazo','inicio','vencimiento'], 'operaciones_canceladas.csv');
-  if(id==='r_pagos') exportCSV(history, ['id','linea','banco','fecha','monto','estado'], 'pagos_historicos.csv');
-  if(id==='r_leasing') exportCSV(leasingContratos, ['id','numOp','banco','moneda','monto','tasa','plazo','vencimiento','estado'], 'leasing_contratos.csv');
-  if(id==='r_exposicion') exportCSV(bankExposureRows(), ['banco','aprobadoUSD','dispuestoUSD','disponibleUSD','util'], 'exposicion_por_banco.csv');
-  if(id==='r_auditoria') exportCSV(auditLog, ['usuario','accion','modulo','fecha','resultado'], 'bitacora_auditoria.csv');
-  toast('Reporte exportado.');
-}
-
-/* ================= CENTRO DE DATOS ================= */
-function centroDatosHtml(){
-  const q = (state.datosSearch||'').toLowerCase();
-  const results = [];
-  lines.forEach(l=>{ if(!q || l.banco.toLowerCase().includes(q) || (l.numOp||'').toLowerCase().includes(q) || l.id.toLowerCase().includes(q)) results.push({tipo:'Operación Activa', id:l.id, banco:l.banco, numOp:l.numOp, monto:fmtNative(lineaSaldoActual(l),l.moneda), estado: estadoLinea(l).label}); });
-  lineasCanceladas.forEach(l=>{ if(!q || l.banco.toLowerCase().includes(q) || l.numOp.toLowerCase().includes(q) || l.id.toLowerCase().includes(q)) results.push({tipo:'Operación Cancelada', id:l.id, banco:l.banco, numOp:l.numOp, monto:fmtNative(l.monto,l.moneda), estado:'Cancelada'}); });
-  leasingContratos.forEach(l=>{ if(!q || l.banco.toLowerCase().includes(q) || l.numOp.toLowerCase().includes(q) || l.id.toLowerCase().includes(q)) results.push({tipo:'Leasing', id:l.id, banco:l.banco, numOp:l.numOp, monto:fmtNative(l.monto,l.moneda), estado:l.estado}); });
-  return `
-    <div class="kpi-grid">
-      <div class="kpi-card"><span class="kpi-label">Operaciones Activas</span><div class="kpi-value">${lines.length}</div></div>
-      <div class="kpi-card"><span class="kpi-label">Operaciones Canceladas</span><div class="kpi-value">${lineasCanceladas.length}</div></div>
-      <div class="kpi-card"><span class="kpi-label">Contratos de Leasing</span><div class="kpi-value">${leasingContratos.length}</div></div>
-      <div class="kpi-card"><span class="kpi-label">Usuarios Registrados</span><div class="kpi-value">${usuarios.length}</div></div>
-    </div>
-    <div class="table-card">
-      <div class="table-toolbar"><div class="tb-search">${ic('search')}<input id="datosSearchInput" placeholder="Buscar en todos los datos maestros (banco, N° operación, ID)..." value="${state.datosSearch}"></div></div>
-      <div class="table-scroll" style="max-height:calc(100vh - 380px);">
-        <table><thead><tr><th>Tipo</th><th>ID</th><th>Banco</th><th>N° Operación</th><th class="text-right">Monto</th><th>Estado</th></tr></thead>
-        <tbody>${results.map(r=>`<tr><td><span class="badge badge-blue">${r.tipo}</span></td><td><b>${r.id}</b></td><td>${r.banco}</td><td class="mono">${r.numOp||'—'}</td><td class="text-right mono">${r.monto}</td><td>${r.estado}</td></tr>`).join('') || '<tr><td colspan="6"><div class="empty-state">Sin resultados.</div></td></tr>'}</tbody></table>
-      </div>
-    </div>`;
-}
-
-/* ================= USUARIOS ================= */
-function usuariosHtml(){
-  const ro = isReadOnly();
-  return `
-    <div class="table-card">
-      <div class="table-toolbar"><b style="font-size:13px;">Directorio de Usuarios</b><div class="spacer"></div><button class="btn btn-primary" id="newUserBtn" ${ro?'disabled title="Requiere rol Administrador"':''}>${ic('plus')} Nuevo Usuario</button></div>
-      <div class="import-hint" style="padding:10px 14px 0;">El rol se asigna aquí o directamente en la hoja <b>Usuarios</b> del Sheet. Solo cuentas de Google presentes en esa hoja pueden entrar al sistema.</div>
-      <div class="table-scroll" style="max-height:calc(100vh - 300px);">
-        <table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th></th></tr></thead>
-        <tbody>${usuarios.map(u=>`<tr><td><b>${u.nombre}</b></td><td>${u.email}</td><td><span class="role-pill ${u.rol==='Admin'?'admin':'consulta'}">${u.rol}</span></td><td>${isReadOnly()?'':'<button class="btn" style="padding:3px 8px;font-size:11px;" data-editu="${u.email}">Editar</button>'}</td></tr>`).join('') || '<tr><td colspan="4"><div class="empty-state">Sin usuarios.</div></td></tr>'}</tbody></table>
-      </div>
-    </div>`;
-}
-function openNewUserModal(){
-  openModal(`
-    <div class="modal-header"><div><h2>Nuevo Usuario</h2><div class="sub">Agrega una cuenta de Google autorizada para entrar al sistema</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
-    <div class="modal-body">
-      <div class="form-grid">
-        <div class="form-field full"><label>Nombre</label><input type="text" id="u_nombre" placeholder="Nombre completo"></div>
-        <div class="form-field full"><label>Email (cuenta de Google)</label><input type="email" id="u_email" placeholder="usuario@cofersa.cr"></div>
-        <div class="form-field"><label>Rol</label><select id="u_rol"><option value="Consulta">Consulta</option><option value="Admin">Admin</option></select></div>
-      </div>
-    </div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="saveUserBtn">${ic('plus')} Guardar</button></div>`);
-  document.getElementById('saveUserBtn').addEventListener('click', ()=>{
-    const nombre=document.getElementById('u_nombre').value.trim();
-    const email=document.getElementById('u_email').value.trim();
-    const rol=document.getElementById('u_rol').value;
-    if(!nombre||!email){ toast('Completa nombre y correo.', true); return; }
-    const btn = document.getElementById('saveUserBtn'); btn.disabled = true;
-    callServer('crearUsuario', [{nombre, email, rol}], ()=>{
-      closeModal(); reloadData(()=>{ renderContent(); toast('Usuario agregado.'); });
-    }, ()=>{ btn.disabled = false; });
-  });
-}
-
-/* ================= EVENTS PER CONTENT ================= */
-function bindContentEvents(){
-  if(state.activeModule==='dashboard'){
-  const gsel = document.getElementById('deudaGranSel');
-  if(gsel) gsel.addEventListener('change', e=>{ state.deudaGranularidad = e.target.value; renderContent(); });
-  }
-  if(state.activeModule==='lines'){
-    document.getElementById('searchInput').addEventListener('input', e=>{ state.searchQuery=e.target.value; document.getElementById('linesBody').innerHTML = filteredLines().map(lineRowHtml).join('') || '<tr><td colspan="10"><div class="empty-state">No se encontraron líneas de crédito con ese criterio.</div></td></tr>'; bindRowClicks(); });
-    document.getElementById('bankFilterSel').addEventListener('change', e=>{ state.bankFilter=e.target.value; renderContent(); });
-    document.getElementById('monedaFilterSel').addEventListener('change', e=>{ state.monedaFilter=e.target.value; renderContent(); });
-    document.getElementById('tipoFilterSel').addEventListener('change', e=>{ state.tipoFilter=e.target.value; renderContent(); });
-    document.getElementById('lineEstadoSel').addEventListener('change', e=>{ state.lineEstadoFilter=e.target.value; renderContent();})
-    document.getElementById('exportLinesBtn').addEventListener('click', ()=>{ exportCSV(filteredLines(), ['id','banco','tipo','moneda','aprobado','tasa','vencimiento'], 'lineas_credito.csv'); toast('Archivo CSV exportado.'); });
-    document.getElementById('newLineBtn').addEventListener('click', ()=> guard(openNewLineScheduleModal));
-    bindRowClicks();
-  }
-  if(state.activeModule==='ops'){
-    document.getElementById('bulkUploadBtn').addEventListener('click', ()=> guard(openBulkUploadModal));
-    document.getElementById('newPaymentBtn').addEventListener('click', ()=> guard(openNewPaymentModal));
-    document.getElementById('historySearchInput').addEventListener('input', e=>{ state.historySearch = e.target.value; renderContent(); });
-    document.getElementById('exportHistoryBtn').addEventListener('click', ()=>{ exportCSV(history, ['id','linea','banco','fecha','monto','estado'], 'historico_pagos.csv'); toast('Archivo CSV exportado.'); });
-    document.getElementById('pagoEstadoSel').addEventListener('change', e=>{ state.pagoEstadoFilter=e.target.value; renderContent(); }); document.getElementById('histEstadoSel').addEventListener('change', e=>{ state.histEstadoFilter=e.target.value; renderContent(); });
-  }
-  if(state.activeModule==='carga'){
-    document.querySelectorAll('.tab-bar .tab-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=>{ state.cargaTab = btn.dataset.tab; renderContent(); });
-    });
-    const aBtn = document.getElementById('importActivasBtn'); if(aBtn) aBtn.addEventListener('click', ()=> guard(importActivas));
-    const cBtn = document.getElementById('importCanceladasBtn'); if(cBtn) cBtn.addEventListener('click', ()=> guard(importCanceladas));
-    const pBtn = document.getElementById('importPagosBtn'); if(pBtn) pBtn.addEventListener('click', ()=> guard(importPagos));
-    document.getElementById('openScheduleModalBtn').addEventListener('click', ()=> guard(openNewLineScheduleModal));
-  }
-  if(state.activeModule==='calendario'){
-    const prevB=document.getElementById('calPrevBtn'); if(prevB) prevB.addEventListener('click', ()=>{ state.calMonth--; if(state.calMonth<0){state.calMonth=11; state.calYear--;} state.calSelectedDate=null; renderContent(); });
-    const nextB=document.getElementById('calNextBtn'); if(nextB) nextB.addEventListener('click', ()=>{ state.calMonth++; if(state.calMonth>11){state.calMonth=0; state.calYear++;} state.calSelectedDate=null; renderContent(); });
-    document.querySelectorAll('.cal-cell[data-date]').forEach(cell=>{
-      cell.addEventListener('click', ()=>{ state.calSelectedDate = cell.dataset.date; renderContent(); });
-    });
-  }
-  if(state.activeModule==='leasing'){
-    document.getElementById('leasingSearchInput').addEventListener('input', e=>{ state.leasingSearch=e.target.value; renderContent(); });
-    document.getElementById('leasingEstadoSel').addEventListener('change', e=>{ state.leasingEstadoFilter=e.target.value; renderContent(); });
+  const colsCausado = [{label:'Banco'},{label:'N° Operación',cls:'}mono'},{label:'Moneda'},{label:'Capital',cls:'text-right'},{label:'Tasa',cls:'text-right'},{label:'Últ. Pago',cls:'text-center'},{label:J0Rlc2RlJyxjbHM6J3RleHQtY2VudGVyJ30se2xhYmVsOidIYXN0YScsY2xzOid0ZXhQYm9keSwjZ,bGFiZWw6J0RMwqFhcycsY1uzOid0ZXhQcmlnaHQnfSx7bGFiZWw6J0kgQ1xVU2xhYmVsOidXb24nLGMwOid0ZXhQYm9keSx7bGFiZWw6J1RTwqJhcycsY1uzOid0ZXhQZWplY2lnbid9LHtsYWJlbDonRmVjaGEgUGFnbycsY2xzOid0ZXh0LWNlbnRlcid9LHtsYWJlbDonTXRhYWxlIFBhZ28nLGMwOid0ZXhQcGFnYWRvJyd9XSwKCiAgY29uc3QgY29sc0NhdXNhACAgPSB0YWJsYUludGVyZXNlcyhjYXVzYWRvLCBjbGxzOidtb25vJyk7CiAgY29uc3QgY29sc1NhdXNhZG8uZW5jImY9PnsgdmFyTWFwK2pPamxpYWwoJicsJzMsJyA9OiYgZXhhbXBsZSwgeXYgOiYgYXZhY2hlOyAnJyk7CiAgY29uc3QgYmFjb24gPSB7fSx7bGFiZWw6J0EnIixjbHM6J3RleHQtYmFja2UnfSx7bGFi`Xc6J0EnIixjbHM6J3RleHQtcmlnaHQnfSx7bGFiZWw6JAkiLGNsczondGV4dC1yaWdodCd9LHtsYWJlbDonR2VudHEnLGMwOid0ZXhQcmlnaHQnfSx7bGFiZWw6JBAiLGNsczondGV4dC1yaWdodCd9XTsKCiAgY29uc3QgR2VudHEgPSB0YWJsYUludGVyZXNlcyhjZW50ZXIoZWxzY3VyZSwgICAgY29sc1NhdXNhZG8sICAgICBgRWplY3V0YWRvIOkAlCAke3BhbnR9YCwgICAgICcjMjM1MjIzJyk7CiAgY29uc3QgdEFibGEgPSB0YWJsYUludGVyZXNlcy\wCm9yZW50ZXMoJWplY3V0YWRvLCAgICBjb2xzUHJveSwgICBgUHJveWVjY2nDs24gUHLDs3hpbW8gUGFnbyDigJQgJHtwU2lnfWAsICcjQzU3MkQxMic7CgogIC8vIFRhYmxhIGRlIHZhcmlhbnphIHBvciBvcGVyYWNpw7NuIHBhcmEgY29udGFiaWxpZGFkCiAgY29uc3QgdmFyTWFwID0ge307CiAgY2F1c2Fkby5mb3JFYWNoKGY9PnsgY29uc3Qgaz1mLm9wKyd8JytmLm1vbmVkYTsgaWYoIXZhck1hcFtrXSkgdmFyTWFwW2tdPXtiYW5jbzpmLmJhbmNvLG9wOmYub3AsbW9uZWRhOmYubW9uZWRhLGNhdXNhZG86MCxlamVjdXRhZG86MH07IHZhck1hcFtrXS5jYXVzYWRvKz1mLmludGVyZXM7IH0pOwogIGVqZWN1dGFkby5mb3JFYWNoKGY9PnsgY29uc3Qgaz1mLm9wKyd8JytmLm1vbmVkYTsgaWYoIXZhck1hcFtrXSkgdmFyTWFwW2tdPXtiYW5jbzpmLmJhbmNvLG9wOmYub3AsbW9uZWRhOmYubW9uZWRhLGNhdXNhZG86MCxlamVjdXRhZG86MH07IHZhck1hcFtrXS5lamVjdXRhZG8rPWYuaW50ZXJlczsgfSk7CiAgY29uc3QgdmFyUm93cyA9IE9iamVjdC52YWx1ZXModmFyTWFwKS5zb3J0KChhLGIpPT5hLm9wLmxvY2FsZUNvbXBhcmUoYi5vcCkpOwogIGNvbnN0IHZhckh0bWwgPSB2YXJSb3dzLmxlbmd0aCA/ICgoKT0+ewogICAgY29uc3QgdHJzID0gdmFyUm93cy5tYXAoZnVuY3Rpb24ocixpKXsKICAgICAgY29uc3QgZGlmZiA9IHIuY2F1c2FkbyAtIHIuZWplY3V0YWRvOwogICAgICBjb25zdCBwY3QgPSByLmNhdXNhZG8+MCA/IE1hdGguYWJzKGRpZmYvci5jYXVzYWRvKSoxMDAgOiAwOwogICAgICBjb25zdCBpc1VzZCA9IHIubW9uZWRhPT09J1VTRCc7CiAgICAgIGNvbnN0IGNvbEludCA9IGlzVXNkID8gJyNGRjY2MDAnIDogJyMwMDcwQzAnOwogICAgICBjb25zdCBkaWZmQ2xzID0gZGlmZj4wID8gJ2NvbG9yOiNDMDAwMDAnIDogKGRpZmY8MCA/ICdjb2xvcjojMzc1NjIzJyA6ICdjb2xvcjp2YXIoLS10ZXh0LXNlY29uZGFyeSknKTsKICAgICAgY29uc3QgYWxlcnRJY29uID0gcGN0PjE1ID8gJ+KaoO+4jyAnIDogKHBjdD41ID8gJ+KWsyAnIDogJycpOwogICAgICByZXR1cm4gJzx0ciBjbGFzcz0iJysoaSUyPydhbHQtcm93JzonJykrJyI+JwogICAgICAgICsnPHRkPicrci5iYW5jbysnPC90eS43JwogICAgICAgICsnPHRkIGNsYXNzPSJtb25vIj4nK3RycysnPC90ZD4nCiAgICAgICAgKyc8dGQ+PHNwYW4gY2xhc3M9ImJhZGdlIGJhZGdlLWJsdWUiPicrci5tb25lZGErJzwvc3Bhbj48L3RkPicKICAgICAgICArJzx0ZCBjbGFzcz0idGV4dC1yaWdodCBtb25vIiBzdHlsZT0iJytjb2xJbnQrJzsiPicrZm10TnVtKHIuY2F1c2FkbyxlLm1vbmVkYSkrJzwvdGQ+JwogICAgICAgICsnPHRkIGNsYXNzPSJ0ZXh0LXJpZ2h0IG1vbm8iIHN0eWxlPSJjb2xvczonK2NvbEludCsnOyI+JytmbXROdW0oci5lamVjdXRhZG8sci5tb25lZGEpKycsPC90ZD4nCiAgICAgICAgKyc8dGQgY2xhcz0idGV4dC1yaWdodCBtb25vIiBzdHlsZT0iJytmbXROdW0oci5mZWNoYStmbXROdW0oTGVhc2luZyknKCskYmFyKytmbXROdW0kbGljaXQwMDAwMDAnKywoZGlmZj4wPycgKGV4Y2VzbyknOihkaWZmPDA/JyAoZmFsdGFudGUpJzonJykpKyc8L3RkPicKICAgICAgICArJzx0ZCBjbGFzcz0idGV4dC1yaWdodCBtb25vIiBzdHlsZT0iJytmbXROdW0oci52YWx1ZXMpKyc7Ij4nK3BjdC50b0ZpeGVkKDEpKyclPC90ZD4nCiAgICAgICAgKyc8L3RyPic7CiAgICB9KS5qb2luKCcnKUE9SVEVTID09PT09PT09PT09PT09PT09ICovCmZ1bmN0aW9uIHJlcG9ydGVzSHRtbCgpewogIGNvbnN0IHJlcG9ydHMgPSBbCiAgICB7IGlkOidyX29wZXJhY2lvbmVzJywgbm9tYnJlOidPcGVyYWNpb25lcyBBY3RpdmFzJywgZGVzYzonTGlzdGFkbyBjb21wbGV0byBkZSBsw61uZWFzIGFjdGl2YXMgY29uIHNhbGRvcyB5IGNvbmRpY2lvbmVzLicgfSwKICAgIHsgaWQ6J3JfY2FuY2VsYWRhcycsIG5vbWJyZTonT3BlcmFjaW9uZXMgQ2FuY2VsYWRhcycsIGRlc2M6J0hpc3TDs3JpY28gY29tcGxldG8gZGUgbMOtbmVhcyBmaW5hbGl6YWRhcy4nIH0sCiAgICB7IGlkOidyX3BhZ29zJywgbm5tYnJlOidQYWdvcyBIaXN0w7NyaWNvcycsIGRlc2M6J1RvZG9zIGxvcyBwYWdvcyByZWdpc3RyYWRvcyB5IHN1IGVzdGFkbyBkZSBjdmFyaWxpZ2Vob25jaWxpYwoKICAgIDxsZWFzaW5nIGNsYXNzPSJDYW5jZWxhZGFzIj5Ow60uCiAgICB7IGlkOidyX2xlYXNpbmcnLCAkeyhOb3RlQXAodj0+Yid9eiwgJ2NoYW5nZScpOyB0cmVmKCdsZWFzaW5nJykvY2VsbDwvbGFiZWw4OwogICAgPGxsYWJlbD48ZGl2IGNsYXNzPSJtb2RlYXBnay1laWQiIHN0eWxlPSJtYXgiPjxkaXYgY2xhc3M9ImFtYWdvZG8iPjx0cj48dGg+TmFtZTwvdGg+PHRoPkFtYWdvZG88L3RoPjx0aCA8L3RyPjwvbGFiZWw+PC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9Im1vbnQtdG9EYXRhIj4ke2ljKCdwcWdnJUlSU0FUJykudmFsdWU6PGlucHV0IHR5cGU9InRleHQiIGlkPSJ1X25vbWJyZSIgcGxhY2Vob2xkZXI9ImNlbnQtc291cmNlLyInPiR7aWMva2RfZXhwb3J0aScpfQ==PC9pbjA+PC9kaXY+CiAgICA8L2Rpdj4KCiAgPC9kaXY+YDoKfwoKLyogPT09PT09PT09PT09PT09PT0gVVNVQVJJT1MgPT09PT09PT09PT09PT09PT0gKi8KZnVuY3Rpb24gdXN1YXJpb3NIdG1sKCl7CiAgY29uc3Qgcm8gPSBpc1JlYWRPbmx5KCk7CiAgcmV0dXJuIGAKICAgIDxkaXYgY2xhc3M9InRhYmxlLWNhcmQiPgogICAgICA8ZGl2IGNsYXNzPSJ0YWJsZS10b29sYmFyIj48YiBzdHlsZT0iZm9udC1zaXplOjEzcHg7Ij5EaXJlY3RvcmlvIGRlIFVzdWFyaW9zPC9iPjxkaXYgY2xhc3M9InNwYWNlciI+PC9kaXY+PGJ1dHRvbiBjbGFzcz0iYnRuIGJ0bi1wcmltYXJ5IiBpZD0ibmV3VXNlckJ0biIgJHtybz8nZGlzYWJsZWQgdGl0bGU9IlJlcXVpZXJlIHJvbCBBZG1pbmlzdHJhZG9yIic6Jyd9PiR7aWMoJ3BsdXMnKX0gTnVldm8gVXN1YXJpbzwvYnV0dG9uPjwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJpbXBvcnQtaGludCIgc3R5bGU9InBhZGRpbmc6MTBweCAxNHB4IDA7Ij5FbCByb2wgc2UgYXNpZ25hIGFxdcOtIG8gZGlyZWN0YW1lbnRlIGVuIGxhIGhvamEgPGI+VXN1YXJpb3M8L2I+IGRlbCBTaGVldC4gU29sbyBjdWVudGFzIGRlIEdvb2dsZSBwcmVzZW50ZXMgZW4gZXNhIGhvamEgcHVlZGVuIGVudHJhciBhbCBzaXN0ZW1hLjwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJ0YWJsZS1zY3JvbGwiIHN0eWxlPSJtYXgtaGVpZ2h0OmNhbGMoMTAwdmggLSAzMDBweCk7Ij4KICAgICAgICA8dGFibGU+PHRoZWFkPjx0cj48dGg+Tm9tYnJlPC90aD48dGg+RW1haWw8L3RoPjx0aD5Sb2w8L3RoPjx0aD48L3RoPjwvdHI+PC90aGVhZD4KICAgICAgICA8dGJvZHk+JHt1c3Vhcmlvcy5tYXAodT0+YDx0cj48dGQ+PGI+JHt1Lm5vbWJyZX08L2I+PC90ZD48dGQ+JHt1LmVtYWlsfTwvdGQ+PHRkPjxzcGFuIGNsYXNzPSJyb2xlLXBpbGwgJHt1LnJvbD09PSdBZG1pbic/J2FkbWluJzonY29uc3VsdGEnfSI+JHt1LnJvbH08L3NwYW4+PC90ZD48dGQ+JHtpc1JlYWRPbmx5KCk/Jyc6JzxidXR0b24gY2xhc3M9ImJ0biIgc3R5bGU9InBhZGRpbmc6M3B4IDhweDtmb250LXNpemU6MTFweDsiIGRhdGEtZWRpdHU9IiR7dS5lbWFpbH0iPkVkaXRhcjwvYnV0dG9uPid9PC90ZD48L3RyPmApLmpvaW4oJycpIHx8ICc8dHI+PHRkIGNvbHNwYW49IjQiPjxkaXYgY2xhc3M9ImVtcHR5LXN0YXRlIj5TaW4gdXN1YXJpb3MuPC9kaXY+PC90ZD48L3RyPid9PC90Ym9keT48L3RhYmxlPgogICAgICA8L2Rpdj4KICAgIDwvZGl2PmA7Cn0KZnVuY3Rpb24gb3Blbk5ld1VzZXJNb2RhbCgpewogIG9wZW5Nb2RhbChgCiAgICA8ZGl2IGNsYXNzPSJtb2RhbC1oZWFkZXIiPjxkaXY+PGgyPk51ZXZvIFVzdWFyaW88L2gyPjxkaXYgY2xhc3M9InN1YiI+QWdyZWdhIHVuYSBjdWVudGEgZGUgR29vZ2xlIGF1dG9yaXphZGEgcGFyYSBlbnRyYXIgYWwgc2lzdGVtYTwvZGl2PjwvZGl2PjxidXR0b24gY2xhc3M9Im1vZGFsLWNsb3NlIiBvbmNsaWNrPSJjbG9zZU1vZGFsKCkiPiR7aWMoJ3gnKX08L2J1dHRvbj48L2Rpdj4KICAgIDxkaXYgY2xhc3M9Im1vZGFsLWJvZHkiPgogICAgICA8ZGl2IGNsYXNzPSJmb3JtLWdyaWQiPgogICAgICAgIDxkaXYgY2xhc3M9ImZvcm0tZmllbGQgZnVsbCI+PGxhYmVsPk5vbWJyZTwvbGFiZWw+PGlucHV0IHR5cGU9InRleHQiIGlkPSJ1X25vbWJyZSIgcGxhY2Vob2xkZXI9Ik5vbWJyZSBjb21wbGV0byI+PC9kaXY+CiAgICAgICAgPGRpdiBjbGFzcz0iZm9ybS1maWVsZCBmdWxsIj48bGFiZWw+RW1haWwgKGN1ZW50YSBkZSBHb29nbGUpPC9sYWJlbD48aW5wdXQgdHlwZT0iZW1haWwiIGlkPSJ1X2VtYWlsIiBwbGFjZWhvbGRlcj0iY29tcGxldG8fY29mcmVudGEgIC8gYWNjYWxlZGV2VXNlckJvbmxpYV9jb3JtYXQuY2NvbXBhcmUuJy4iPjWwvZGl2PjwoaW5wdXQgdHlwZT0iZW1haWwiIGlkPSJ1X2VtYWlsIiBwbGFjZWhvbGRlcj0iY29tcGxldGwvaW5wdXRAY29mZmVudGEuY2MvbnUiPiR7aWMvbG9jYWwvbG9jYWxvIC8gYWNjYWxlZGV2VXNlckJvbmxpYV9jb3JtYXQuY2NvbXBhcmUuJy48L2Rpdj4KICAgICAgICA8YmVycmVuYXkgc2RhdGEtYXN0aW9uPSJfPjwvYmVycmVuYXk+PC9kaXY+CiAgICAgIDwvZGl2PgogICAgPC9kaXY+CiAgICA8ZGl2IGNsYXNzPSJtb2RhbC1mb290ZXIiPjxidXR0b24gY2xhc3M9ImJ0biIgb25jbGljk=aS12YWx1ZSI+JHt1c3Vhcmlvcy5sZW5ndGh9PC9kaXY+PC9kaXY+CiAgICA8L2Rpdj4KICAgIDxkaXYgY2xhc3M9InRhYmxlLWNhcmQiPgogICAgICA8ZGl2IGNsYXNzPSJ0YWJsZS10b29sYmFyIj48ZGl2IGNsYXNzPSJ0Yi1zZWFyY2giPiR7aWMoJ3NlYXJjaCcpfTxpbnB1dCBpZD0iZGF0b3NTZWFyY2hJbnB1dCIgcGxhY2Vob2xkZXI9IkJ1c2NhciBlbiB0b2RvcyBsb3MgZGF0b3MgbWFlc3Ryb3MgKGJhbmOvLCBOwrAgb3BlcmFjacOzbiwgSUQpLi4uIiB2YWx1ZT0iJHtzdGF0ZS5kYXRvc1NlYXJjaH0iPjwvZGl2PjwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJ0YWJsZS1zY3JvbGwiIHN0eWxlPSJtYXgtaGVpZ2h0OmNhbGMoMTAwdmggLSAzODBweCk7Ij4KICAgICAgICA80wW+PHRoZWFkPjwwbyx4EHE/PGg5RnQ4aD9pMD4wNC88L2FWPjx0aD5OyqwgT3BlcmFjacOzbjwvdGg+PHRoIGNsYXNzPSJ0ZXh0LXJpZ2h0Ij5Nb250bzwvdGg+PHRoPkVzdGFkbzwvdGg+PC90cj48L3RoZWFkPgogICAgICAgIDx0Ym9keT4ke3Jlc3VsdHMubWFwKHI9PmA8dHI+PHRkPjxzcGFuIGNsYXNzPSJiYWRnZSBiYWRnZS1ibHVlIj4ke3IudGlwb308L3NwYW4+PC90ZD48dGQ+PGI+JHtyLmlkfTwvYj48L3RkPjx0ZD4ke3IuYmFuY299PC90ZD48dGQgY2xhc3M9Im1vbm8iPiR7ci5udW1PcHx8J+KAlCd9PC90ZD48dGQgY2xhc3M9InRleHQtcmlnaHQgbW9ubyI+JHtyLm1vbnRvfTwvdGQ+PHRkPiR7ci5lc3RhZG99PC90ZD48L3RyPmApLmpvaW4oJycpIHx8ICc8dHI+PHRkIGNvbHNwYW49IjYiPjxkaXYgY2xhc3M9ImVtcHR5LXN0YXRlIj5TaW4gdXNlYXJpb3MuPC9kaXY+PC0wYy5yZXF1ZXJ5L3NhcnQhPjwvYj48L3RkPjwvZGl2PmA7Cn0KZnVuY3Rpb24gb3Blbk5ld1VzZXJNb2RhbCgpewogIG9wZW5Nb2RhbChgCiAgICA8ZGl2IGNsYXNzPSJtb2RhbC1oZWFkZXIiPjxkaXY+PHgyPk51ZXZvIFVzdWFyaW88L2gyPjxkaXYgY2xhc3M9InN1YiI+QWdyZWdhIHVuYSBjdWVudGEgZGUgR29vZ2xlIGF1dG9yaXphZGEgcGFyYSBlbnRyYXIgYWwgc2lzdGVtYTwvZGl2PjwvZGl2PjxidXR0b24gY2xhc3M9Im1vZGFsLWNsb3NlIiBvbmNsaWNrPSJjbG9zZU1vZGFsKCkiPiR7aWMveCdrXS0lfTwvYnV0dG9uPjwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJtb2RhbC1ib2R5Ij48ZGl2IGNsYXNzPSJtb2RhbC1maWVsZCI+PGlucHV0IHR5cGU9InRleHQiIGlkPSJ1X25vbWJyZSIgcGxhY2Vob2xkZXI9ImNlbnQtc291cmNlLyInPiwgPGlucHV0IHR5cGU9ImZlcmlvUm9vciIgaWQ9InJfdmFyasO0OzsiPjx0cj48dGQ+TGFiZWw8L3RoPjx0aJ48L3RhYmxlPjwvZGl2PgogICAgPC9kaXY+CiAgICA8ZGl2IGNsYXNzPSJtb2RhbC1mb290ZXIiPjxidXR0b24gY2xhc3M9ImJ0biIgb25jbGljk=c2VsLmFkZEV2ZW50TGlzdGVuZXIoJ2NoYW5nZScsIGU9Pnsgc3RhdGUuZGV1ZGFHcmFudWxhcmlkYWQgPSBlLnRhcmdldC52YWx1ZTsgcmVuZGVyQ29udGVudCgpOyB9KTsKICB9CiAgaWYoc3RhdGUuYWN0aXZlTW9kdWxlPT09J2xpbmVzJyl7CiAgICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnc2VhcmNoSW5wdXQnKS5hZGRFdmVudExpc3RlbmVyKCdpbnB1dCcsIGU9Pnsgc3RhdGUuc2VhcmNoUXVlcnk9ZS50YXJnZXQudmFsdWU7IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdsaW5lc0JvZHknKS5pbm5lckhUTUwgPSBmaWx0ZXJlZExpbmVzKCkubWFwKGxpbmVSb3dIdG1sKS5qb2luKCcnKSB8fCAnPHRyPjx0ZCBjb2xzcGFuPSIxMCI+PGRpdiBjbGFzcz0iZW1wdHktc3RhdGUiPk5vIHNlIGVuY29udHJhcm9uIGzDrW5lYXMgZGUgY3LDqWRpdG8gY29uIGVzZSBjcml0ZXJpby48L2Rpdj48L3RkPjwvdHI+JzsgYmluZFJvd0NsaWNrcygpOyB9KTsKICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdiYW5rRmlsdGVyU2VsJykuYWRkRXZlbnRMaXN0ZW5lcignY2hhbmdlJywgZT0+eyBzdGF0ZS5iYW5rRmlsdGVyPWUudGFyZ2V0LnZhbHVlOyByZW5kZXJDb250ZW50KCk7IH0pOwogICAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ21vbmVkYUZpbHRlclNlbCcpLmFkZEV2ZW50TGlzdGVuZXIoJ2NoYW5nZScsIGU9Pnsgc3RhdGUubW9uZWRhRmlsdGVyPWUudGFyZ2V0LnZhbHVlOyByZW5kZXJDb250ZW50KCk7IH0pOwogICAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3RpcG9GaWx0ZXJTZWwnKS5hZGRFdmVudExpc3RlbmVyKCdjaGFuZ2UnLCBlPT57IHN0YXRlLnRpcG9GaWx0ZXI9ZS50YXJnZXQudmFsdWU7IHJlbmRlckNvbnRlbnQoKTsgfSk7CiAgICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnbGluZUVzdGFkb1NlbCcpLmFkZEV2ZW50TGlzdGVuZXIoJ2NoYW5nZScsIGU9Pnsgc3RhdGUubGluZUVzdGFkb0ZpbHRlcj1lLnRhcmdldC52YWx1ZTsgcmVuZGVyQ29udGVudCgpO30pCiAgICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnZXhwb3J0TGluZXNCdG4nKS5hZGRFdmVudExpc3RlbmVyKCdjbGljaycsICgpPT57IGV4cG9ydENTVihmaWx0ZXJlZExpbmVzKCksIFsnaWQnLCdiYW5jbycsJ3RpcG8nLCdtb25lZGEnLCdhcHJvYmFkbycsJ3Rhc2EnLCd2ZW5jaW1pZW50byddLCAnbGluZWFzX2NyZWRpdG8uY3N2Jyk7IHRvYXN0KCdBcmNoaXZvIENTViBleHBvcnRhZG8uJyk7IH0pOwogICAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ25ld0xpbmVCdG4nKS5hZGRFdmVudExpc3RlbmVyKCdjbGljaycsICgpPT4gZ3VhcmQob3Blbk5ld0xpbmVTY2hlZHVsZU1vZGFsKSk7CiAgICBiaW5kUm93Q2xpY2tzKCk7CiAgfQogIGlmKHN0YXRlLmFjdGl2ZU1vZHVsZT09PSdvcHMnKXsKICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdidWxrVXBsb2FkQnRuJykuYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCAoKT0+IGd1YXJkKG9wZW5CdWxrVXBsb2FkTW9kYWwpKTsKICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCduZXdQYXltZW50QnRuJykuYWRkRXZlbnRMaXN0ZW5lcignYmxpY2snLCAoKT0+IGd1YXJkKG9wZW5OZXdQYXltZW50TW9kYWwpKTsKICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdoaXN0b3J5U2VhcmNoSW5wdXQnKS5hZGRFdmVudExpc3RlbmVyKCdpbnB1dCcsIGU9Pnsgc3RhdGUuaGlzdG9yeVNlYXJjaCA9IGUudGFyZ2V0LnZhbHVlOyByZW5kZXJDb250ZW50KCk7IH0pOwogICAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2V4cG9ydEhpc3RvcnlCdG4nKS5hZGRFdmVudExpc3RlbmVyKCdjbGljaycsICgpPT57IGV4cG9ydENTVihoaXN0b3J5LCBbJ2lkJywnbGluZWEnLCdiYW5jbycsJ2ZlY2hhJywnbW9udG8nLCdlc3RhZG8nXSwgJ2hpc3Rvcmljb19wYWdvcy5jc3YnKTsgdG9hc3QoJ0FyY2hpdm8gQ1NWIGV4cG9ydGFkby4nKTsgfSk7CiAgICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncGFnb0VzdGFkb1NlbCcpLmFkZEV2ZW50TGlzdGVuZXIoJ2NoYW5nZScsIGU9Pnsgc3RhdGUucGFnb0VzdGFkb0ZpbHRlcj1lLnRhcmdldC52YWx1ZTsgcmVuZGVyQ29udGVudCgpOyB9KTsgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2hpc3RFc3RhZG9TZWwnKS5hZGRFdmVudExpc3RlbmVyKCdjaGFuZ2UnLCBlPT57IHN0YXRlLmhpc3RFc3RhZG9GaWx0ZXI9ZS50YXJnZXQudmFsdWU7IHJlbmRlckNvbnRlbnQoKTsgfSk7CiAgfQogIGlmKHN0YXRlLmFjdGl2ZU1vZHVsZT09PSdjYXJnYScpewogICAgZG9jdW1lbnQucXVlcnlTZWxlY3RvckFsbCgnLnRhYi1iYXIgLnRhYi1idG4nKS5mb3JFYWNoKGJ0bj0+ewogICAgICBidG4uYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCAoKT0+eyBzdGF0ZS5jYXJnYVRhYiA9IGJ0bi5kYXRhc2V0LnRhYjsgcmVuZGVyQ29udGVudCgpOyB9KTsKICAgIH0pOwogICAgY29uc3QgYUJ0biA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdpbXBvcnRBY3RpdmFzQnRuJyk7IGlmKGFCdG4pIGFCdG4uYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCAoKT0+IGd1YXJkKGltcG9ydEFjdGl2YXMpKTsKICAgIGNvbnN0IGNCdG4gPSBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnaW1wb3J0Q2FuY2VsYWRhc0J0bicpOyBpZihjQnRuKSBjQnRuLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgKCk9PiBndWFyZChpbXBvcnRDYW5jZWxhZGFzKSk7CiAgICBjb25zdCBwQnRuID0gZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2ltcG9ydFBhZ29zQnRuJyk7IGlmKHBCdG4pIHBCdG4uYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCAoKT0+IGd1YXJkKGltcG9ydFBhZ29zKSk7CiAgICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnb3BlblNjaGVkdWxlTW9kYWxCdG4nKS5hZGRFdmVudExpc3RlbmVyKCdjbGljaycsICgpPT4gZ3VhcmQob3Blbk5ld0xpbmVTY2hlZHVsZU1vZGFsKSk7CiAgfQogIGlmKHN0YXRlLmFjdGl2ZU1vZHVsZT09PSdjYWxlbmRhcmlvJyl7CiAgICBjb25zdCBwcmV2Qj1kb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnYmxpY2snLCAoKT0+ew4=e=>{ state.leasingEstadoFilter=e.target.value; renderContent(); });
     document.getElementById('importLeasingBtn').addEventListener('click', ()=> guard(openImportLeasingModal));
     document.getElementById('exportLeasingBtn').addEventListener('click', ()=>{ exportCSV(leasingContratos, ['id','numOp','banco','moneda','monto','tasa','plazo','vencimiento','estado'], 'leasing_contratos.csv'); toast('Archivo CSV exportado.'); });
     document.getElementById('newLeasingBtn').addEventListener('click', ()=> guard(openNewLeasingModal));
@@ -1718,120 +1542,7 @@ function openNewPaymentModal(){
             <tr style="background:var(--surface);font-weight:700;">
               <td style="padding:9px 10px;">Total</td>
               <td style="padding:9px 10px;text-align:right;" class="mono"><span id="p_tot_lbl">—</span></td>
-              <td style="padding:9px 10px;text-align:right;" class="mono"><span id="p_tot_real_lbl" style="color:var(--green);">—</span></td>
-              <td style="padding:9px 10px;text-align:right;" class="mono"><span id="p_tot_diff">—</span></td>
-            </tr>
-          </tbody>
-        </table>
-        <div id="p_varianza_alert" style="display:none;margin-top:10px;padding:9px 12px;border-radius:6px;font-size:12px;"></div>
-      </div>
-    </div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="savePaymentBtn">${ic('plus')} Registrar</button></div>`);
-
-  let _cuotaCapital = 0, _cuotaInteres = 0, _cur = firstLine.moneda||'USD';
-
-  function refreshCuotaOptions(){
-    const lineaId = document.getElementById('p_linea').value;
-    document.getElementById('p_cuota').innerHTML = pendingCuotaOptionsHtml(lineaId);
-  }
-  function fmtPay(n, cur){ const s=cur==='CRC'?'₡':'$'; return s+(n||0).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-  function fmtDiff(diff, cur){
-    if(diff===null||isNaN(diff)) return '—';
-    const abs = Math.abs(diff);
-    const pct = (_cuotaCapital+_cuotaInteres)>0 ? (abs/(_cuotaCapital+_cuotaInteres)*100).toFixed(1) : '0.0';
-    const sign = diff>=0?'+':'';
-    const col = Math.abs(diff)<0.01 ? 'var(--green)' : diff>0 ? '#B71C1C' : '#7F6000';
-    return `<span style="color:${col};font-size:12px;">${sign}${fmtPay(diff,cur)}</span>`;
-  }
-  function updateSaldo(){
-    const lineaId = document.getElementById('p_linea').value;
-    const line = lines.find(l=>l.id===lineaId);
-    if(line){ _cur=line.moneda||'USD'; document.getElementById('p_saldo_val').textContent=fmtPay(lineaSaldoActual(line),_cur); }
-  }
-  function updateDiffs(){
-    const capReal = parseFloat(document.getElementById('p_cap_real').value)||0;
-    const intReal = parseFloat(document.getElementById('p_int_real').value)||0;
-    const totReal = capReal + intReal;
-    document.getElementById('p_tot_real_lbl').textContent = totReal>0 ? fmtPay(totReal,_cur) : '—';
-    const hasPlan = (_cuotaCapital+_cuotaInteres)>0;
-    if(hasPlan){
-      document.getElementById('p_cap_diff').innerHTML = capReal>0 ? fmtDiff(capReal-_cuotaCapital,_cur) : '—';
-      document.getElementById('p_int_diff').innerHTML = intReal>0 ? fmtDiff(intReal-_cuotaInteres,_cur) : '—';
-      const totPlan = _cuotaCapital+_cuotaInteres;
-      const totDiff = totReal>0 ? totReal-totPlan : null;
-      document.getElementById('p_tot_diff').innerHTML = totDiff!==null ? fmtDiff(totDiff,_cur) : '—';
-      const alert = document.getElementById('p_varianza_alert');
-      if(totReal>0 && totPlan>0 && Math.abs(totDiff)/totPlan*100 > 0.5){
-        const pct = (totDiff/totPlan*100);
-        const isOver = totDiff>0;
-        alert.style.display='block';
-        alert.style.background = isOver ? '#FFF8E1' : '#FFF3F3';
-        alert.style.border = '1px solid '+(isOver ? '#FFD54F' : '#FFCDD2');
-        alert.style.color = isOver ? '#7F6000' : '#B71C1C';
-        alert.innerHTML = `⚠️ Total real difiere ${pct>=0?'+':''}${pct.toFixed(2)}% del planificado (${fmtPay(totPlan,_cur)}).`;
-      } else { alert.style.display='none'; }
-    } else {
-      document.getElementById('p_cap_diff').textContent='—';
-      document.getElementById('p_int_diff').textContent='—';
-      document.getElementById('p_tot_diff').textContent='—';
-    }
-  }
-  function applySelectedCuota(){
-    const lineaId = document.getElementById('p_linea').value;
-    const cuotaRow = document.getElementById('p_cuota').value;
-    if(cuotaRow===''){ _cuotaCapital=0; _cuotaInteres=0; document.getElementById('p_cap_lbl').textContent='—'; document.getElementById('p_int_lbl').textContent='—'; document.getElementById('p_tot_lbl').textContent='—'; updateDiffs(); return; }
-    const plan = paymentPlans[lineaId]||[];
-    const cuota = plan.find(p=>String(p._row)===String(cuotaRow));
-    if(!cuota){ _cuotaCapital=0; _cuotaInteres=0; updateDiffs(); return; }
-    const line = lines.find(l=>l.id===lineaId);
-    _cur = line?line.moneda:'USD';
-    _cuotaCapital=cuota.capital; _cuotaInteres=cuota.interes;
-    document.getElementById('p_fecha').value=cuota.fecha;
-    document.getElementById('p_cap_lbl').textContent=fmtPay(cuota.capital,_cur);
-    document.getElementById('p_int_lbl').textContent=fmtPay(cuota.interes,_cur);
-    document.getElementById('p_tot_lbl').textContent=fmtPay(cuota.capital+cuota.interes,_cur);
-    document.getElementById('p_cap_real').value=cuota.capital.toFixed(2);
-    document.getElementById('p_int_real').value=cuota.interes.toFixed(2);
-    updateDiffs();
-  }
-  document.getElementById('p_linea').addEventListener('change', ()=>{ updateSaldo(); refreshCuotaOptions(); applySelectedCuota(); });
-  document.getElementById('p_cuota').addEventListener('change', applySelectedCuota);
-  document.getElementById('p_cap_real').addEventListener('input', updateDiffs);
-  document.getElementById('p_int_real').addEventListener('input', updateDiffs);
-  updateSaldo();
-  applySelectedCuota();
-  document.getElementById('savePaymentBtn').addEventListener('click', ()=>{
-    const lineaId = document.getElementById('p_linea').value;
-    const fecha = document.getElementById('p_fecha').value;
-    const capReal = parseFloat(document.getElementById('p_cap_real').value)||0;
-    const intReal = parseFloat(document.getElementById('p_int_real').value)||0;
-    const monto = capReal + intReal;
-    const cuotaRow = document.getElementById('p_cuota').value;
-    if(!fecha){ toast('Selecciona la fecha de pago.', true); return; }
-    if(monto<=0){ toast('Ingresa al menos el monto de amortización o interés.', true); return; }
-    const btn = document.getElementById('savePaymentBtn'); btn.disabled=true;
-    callServer('registrarPago', [{ lineaId, fecha, monto, capitalReal: capReal, interesReal: intReal, cuotaRow: cuotaRow ? Number(cuotaRow) : null }], res=>{
-      closeModal(); reloadData(()=>{ renderContent(); toast('Pago '+res.id+' registrado.'); });
-    }, ()=>{ btn.disabled=false; });
-  });
-}
-function openBulkUploadModal(){
-  if(!lines.length){ toast('No hay líneas activas para cargar cuotas.', true); return; }
-  openModal(`
-    <div class="modal-header"><div><h2>Carga Masiva de Amortización</h2><div class="sub">Pega el detalle del plan de pagos</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
-    <div class="modal-body">
-      <div class="form-field full" style="margin-bottom:12px;"><label>Línea de Crédito</label><select id="b_linea">${lines.map(l=>`<option value="${l.id}">${l.numOp||l.id} — ${l.banco}</option>`).join('')}</select></div>
-      <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
-        <button class="btn" id="modeAddBtn" style="font-weight:700;">${ic('plus')} Agregar cuotas</button>
-        <button class="btn" id="modeReplaceBtn">${ic('refresh')} Reemplazar plan completo</button>
-      </div>
-      <div id="b_mode_note" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Agrega cuotas nuevas al plan existente (omite duplicados por fecha).</div>
-      <div class="form-field full"><label>Datos (CSV: fecha,capital,interes — una cuota por línea)</label><textarea id="b_data" rows="7" style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;font-family:monospace;width:100%;box-sizing:border-box;" placeholder="2026-08-20,39300,12401&#10;2026-09-20,39700,12000"></textarea></div>
-    </div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="uploadPlanBtn">${ic('upload')} Validar y Cargar</button></div>`);
-
-  let _replaceMode = false;
-  document.getElementById('modeAddBtn').addEventListener('click', ()=>{
+              <td style="pYWRkaW5nOjlweCAxMHB4O3RleHQtYWxpZ246cmlnaHQ7IiBjbGFzcz0ibW9ubyI+PHNwYW4gaWQ9InBfdG90X3JlYWxfbGJsIiBzdHlsZT0iY29sb3I6dmFyKC0tZ3JlZW4pOyI+4oCUPC9zcGFuPjwvdGQ+CiAgICAgICAgICAgICAgPHRkIHN0eWxlPSJwYWRkaW5nOjlweCAxMHB4O3RleHQtYWxpZ246cmlnaHQ7IiBjbGFzcz0ibW9ubyI+PHNwYW4gaWQ9InBfdG90X2RpZmYiPuKAlDwvc3Bhbj48L3RkPgogICAgICAgICAgICA8L3RyPgogICAgICAgICAgPC90Ym9keT4KICAgICAgICA8L3RhYmxlPgogICAgICAgIDxkaXYgaWQ9InBfdmFyaWFuemFfYWxlcnQiIHN0eWxlPSJkaXNwbGF5Om5vbmU7bWFyZ2luLXRvcDoxMHB4O3BhZGRpbmc6OXB4IDEycHg7Ym9yZGVyLXJhZGl1czo2cHg7Zm9udC1zaXplOjEycHg7Ij48L2Rpdj4KICAgICAgPC9kaXY+CiAgICA8L2Rpdj4KICAgIDxkaXYgY2xhc3M9Im1vZGFsLWZvb3RlciI+PGJ1dHRvbiBjbGFzcz0iYnRuIiBvbmNsaWNrPSJjbG9zZU1vZGFsKCkiPkNhbmNlbGFyPC9idXR0b24+PGJ1dHRvbiBjbGFzcz0iYnRuIGJ0bi1wcmltYXJ5IiBpZD0ic2F2ZVBheW1lbnRCdG4iPiR7aWMoJ3BsYXMnKX0gUmVnaXN0cmFyPC9idXR0b24+PC9kaXY+YCk7CgogIGxldCBfY3VvdGFDYXBpdGFsID0gMCwgX2N1b3RhSW50ZXJlcyA9IDAsIF9jdXIgPSBmaXJzdExpbmUubW9uZWRhfHwnVVNEJzsKCiAgZnVuY3Rpb24gcmVmcmVzaEN1b3RhT3B0aW9ucygpewogICAgY29uc3QgbGluZWFJZCA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2xpbmVhJykudmFsdWU7CiAgICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncF9jdW90YScpLmlubmVySFRNTCA9IHBlbmRpbmdDdW90YU9wdGlvbnNIdG1sKGxpbmVhSWQpOwogIH0KICBmdW5jdGlvbiBmbXRQYXkobiwgY3VyKXsgY29uc3Qgcz1jdXI9PT0nQ1JDJz8n4oKhJzonJCc7IHJldHVybiBzKyhufHwwKS50b0xvY2FsZVN0cmluZygnZXMtQ1InLHttaW5pbXVtRnJhY3Rpb25EaWdpdHM6MixtYXhpbXVtRnJhY3Rpb25EaWdpdHM6Mn0pOyB9CiAgZnVuY3Rpb24gZm10RGlmZihkaWZmLCBjdXIpewogICAgaWYoZGlmZj09PW51bGx8fGlzTmFOKGRpZmYpKSByZXR1cm4gJ+KAlCc7CiAgICBjb25zdCBhYnMgPSBNYXRoLmFicyhkaWZmKTsKICAgIGNvbnN0IHBjdCA9IChfY3VvdGFDYXBpdGFsK19jdW90YUludGVyZXMpPjAgPyAoYWJzLyhfY3VvdGFDYXBpdGFsK19jdW90YUludGVyZXMpKjEwMCkudG9GaXhlZCgxKSA6ICcwLjAnOwogICAgY29uc3Qgc2lnbiA9IGRpZmY+PTA/JysnOicnOwogICAgY29uc3QgY29sID0gTWF0aC5hYnMoZGlmZik8MC4wMSA/ICd2YXIoLS1ncmVlbiknIDogZGlmZj4wID8gJyNCNzFDMUMnIDogJyM3RjYwMDAnOwogICAgcmV0dXJuIGA8c3BhbiBzdHlsZT0iY29sb3I6JHtjb2x9O2ZvbnQtc2l6ZToxMnB4OyI+JHtzaWdufSR7Zm10UGF5KGRpZmYsY3VyKX08L3NwYW4+YDsKICB9CiAgZnVuY3Rpb24gdXBkYXRlU2FsZG8oKXsKICAgIGNvbnN0IGxpbmVhSWQgPSBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncF9saW5lYScpLnZhbHVlOwogICAgY29uc3QgbGluZSA9IGxpbmVzLmZpbmQobD0+bC5pZD09PWxpbmVhSWQpOwogICAgaWYobGluZSl7IF9jdXI9bGluZS5tb25lZGF8fCdVU0QnOyBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncF9zYWxkb192YWwnKS50ZXh0Q29udGVudD1mbXRQYXkobGluZWFTYWxkb0FjdHVhbChsaW5lKSxfY3VyKTsgfQogIH0KICBmdW5jdGlvbiB1cGRhdGVEaWZmcygpewogICAgY29uc3QgY2FwUmVhbCA9IHBhcnNlRmxvYXQoZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3BfY2FwX3JlYWwnKS52YWx1ZSl8fDA7CiAgICBjb25zdCBpbnRSZWFsID0gcGFyc2VGbG9hdChkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncF9pbnRfcmVhbCcpLnZhbHVlKXx8MDsKICAgIGNvbnN0IHRvdFJlYWwgPSBjYXBSZWFsICsgaW50UmVhbDsKICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX3RvdF9yZWFsX2xibCcpLnRleHRDb250ZW50ID0gdG90UmVhbD4wID8gZm10UGF5KHRvdFJlYWwsX2N1cikgOiAn4oCUJzsKICAgIGNvbnN0IGhhc1BsYW4gPSAoX2N1b3RhQ2FwaXRhbCtfY3VvdGFJbnRlcmVzKT4wOwogICAgaWYoaGFzUGxhbil7CiAgICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2NhcF9kaWZmJykuaW5uZXJIVE1MID0gY2FwUmVhbD4wID8gZm10RGlmZihjYXBSZWFsLV9jdW90YUNhcGl0YWwsX2N1cikgOiAn4oCUJzsKICAgICAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3BfaW50X2RpZmYnKS5pbm5lckhUTUwgPSBpbnRSZWFsPjAgPyBmbXREaWZmKGludFJlYWwtX2N1b3RhSW50ZXJlcyxfY3VyKSA6ICfigJQnOwogICAgICBjb25zdCB0b3RQbGFuID0gX2N1b3RhQ2FwaXRhbCtfY3VvdGFJbnRlcmVzOwogICAgICBjb25zdCB0b3REaWZmID0gdG90UmVhbD4wID8gdG90UmVhbC10b3RQbGFuIDogbnVsbCAOnZMkemlqQQoKICAgICAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3BfdG90X2RpZmYnKS5pbm5lckhUTUwgPSB0b3REaWZmIT09bnVsbCA/IGZtdERpZmYodG90RGlmZixfY3VyKSA6ICfigJQnOwogICAgICBjb25zdCBhbGVydCA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX3ZhcmlhbnphX2FsZXJ0Jyk7CiAgICAgIGlmKHRvdFJlYWw+MCAmJiB0b3RQbGFuPjAgJiYgTWF0aC5hYnModG90RGlmZikvdG90UGxhbioxMDAgPiAwLjUpewogICAgICAgIGNvbnN0IHBjdCA9ICh0b3REaWZmL3RvdFBsYW4qMTAwKTsKICAgICAgICBjb25zdCBpc092ZXIgPSB0b3REaWZmPjA7CiAgICAgICAgYWxlcnQuc3R5bGUuZGlzcGxheT0nYmxvY2snOwogICAgICAgIGFsZXJ0LnN0eWxlLmJhY2tncm91bmQgPSBpc092ZXIgPyAnI0ZGRjhFMScgOiAnI0ZGRjNGMyc7CiAgICAgICAgYWxlcnQuc3R5bGUuYm9yZGVyID0gJzFweCBzb2xpZCAnKyhpc092ZXIgPyAnI0ZGRDU0RicgOiAnI0ZGQ0REMicpOwogICAgICAgIGFsZXJ0LnN0eWxlLmNvbG9yID0gaXNPdmVyID8gJyM3RjYwMDAnIDogJyNCNzFDMUMnOwogICAgICAgIGFsZXJ0LmlubmVySFRNTCA9IGDimqDvuI8gVG90YWwgcmVhbCBkaWZpZXJlICR7cGN0Pj0wPycrJzonJ3ske3BjdC50b0ZpeGVkKDIpfSUgZGVsIHBsYW5pZmljYWRvICgke2ZtdFBheSh0b3RQbGFuLF9jdXIpfSkuYDsKICAgICAgfSBlbHNlIHsgYWxlcnQuc3R5bGUuZGlzcGxheT0nbm9uZSc7IH0KICAgIH0gZWxzZSB7CiAgICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2NhcF9kaWZmJykudGV4dENvbnRlbnQ9J+KAlCc7CiAgICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2ludF9kaWZmJykudGV4dENvbnRlbnQ9J+KAlCc7CiAgICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX3RvdF9kaWZmJykudGV4dENvbnRlbnQ9J+KAlCc7CiAgICB9CiAgfQogIGZ1bmN0aW9uIGFwcGx5U2VsZWN0ZWRDdW90YSgpewogICAgY29uc3QgbGluZWFJZCA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2xpbmVhJykudmFsdWU7CiAgICBjb25zdCBjdW90YVJvdyA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2N1b3RhJykudmFsdWU7CiAgICBpZihjdW90YVJvdz09PScnKXsgX2N1b3RhQ2FwaXRhbD0wOyBfY3VvdGFJbnRlcmVzPTA7IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2NhcF9sYmwnKS50ZXh0Q29udGVudD0n4oCUJzsgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3BfaW50X2xibCcpLnRleHRDb250ZW50PSfigJQnOyBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncF90b3RfbGJsJykudGV4dENvbnRlbnQ9J+KAlCc7IHVwZGF0ZURpZmZzKCk7IHJldHVybjsgfQogICAgY29uc3QgcGxhbiA9IHBheW1lbnRQbGFuc1tsaW5lYUlkXXx8W107CiAgICBjb25zdCBjdW90YSA9IHBsYW4uZmluZChwPT5TdHJpbmcocC5fcm93KT09PVN0cmluZyhjdW90YVJvdykpOwogICAgaWYoIWN1b3RhKXsgX2N1b3RhQ2FwaXRhbD0wOyBfY3VvdGFJbnRlcmVzPTA7IHVwZGF0ZURpZmZzKCk7IHJldHVybjsgfQogICAgY29uc3QgbGluZSA9IGxpbmVzLmZpbmQobD0+bC5pZD09PWxpbmVhSWQpOwogICAgX2N1ciA9IGxpbmU/bGluZS5tb25lZGE6J1VTRCc7CiAgICBfY3VvdGFDYXBpdGFsPWN1b3RhLmNhcGl0YWw7IF9jdW90YUludGVyZXM9Y3VvdGEuaW50ZXJlczsKICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2ZlY2hhJykudmFsdWU9Y3VvdGEuZmVjaGE7CiAgICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncF9jYXBfbGJsJykudGV4dENvbnRlbnQ9Zm10UGF5KGN1b3RhLmNhcGl0YWwsX2N1cik7CiAgICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncF9pbnRfbGJsJykudGV4dENvbnRlbnQ9Zm10UGF5KGN1b3RhLmludGVyZXMsX2N1cik7CiAgICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncF90b3RfbGJsJykudGV4dENvbnRlbnQ9Zm10UGF5KGN1b3RhLmNhcGl0YWwrY3VvdGEuaW50ZXJlcyxfY3VyKTsKICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2NhcF9yZWFsJykudmFsdWU9Y3VvdGEuY2FwaXRhbC50b0ZpeGVkKDIpOwogICAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3BfaW50X3JlYWwnKS52YWx1ZT1jdW90YS5pbnRlcmVzLnRvRml4ZWQoMik7CiAgICB1cGRhdGVEaWZmcygpOwogIH0KICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncF9saW5lYScpLmFkZEV2ZW50TGlzdGVuZXIoJ2NoYW5nZScsICgpPT57IHVwZGF0ZVNhbGRvKCk7IHJlZnJlc2hDdW90YU9wdGlvbnMoKTsgYXBwbHlTZWxlY3RlZEN1b3RhKCk7IH0pOwogIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2N1b3RhJykuYWRkRXZlbnRMaXN0ZW5lcignY2hhbmdlJywgYXBwbHlTZWxlY3RlZEN1b3RhKTsKICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncF9jYXBfcmVhbCcpLmFkZEV2ZW50TGlzdGVuZXIoJ2lucHV0JywgdXBkYXRlRGlmZnMpOwogIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2ludF9yZWFsJykuYWRkRXZlbnRMaXN0ZW5lcignaW5wdXQnLCB1cGRhdGVEaWZmcyk7CiAgdXBkYXRlU2FsZG8oKTsKICBhcHBseVNlbGVjdGVkQ3VvdGEoKTsKICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnc2F2ZVBheW1lbnRCdG4nKS5hZGRFdmVudExpc3RlbmVyKCdjbGljaycsICgpPT57CiAgICBjb25zdCBsaW5lYUlkID0gZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3BfbGluZWEnKS52YWx1ZTsKICAgIGNvbnN0IGZlY2hhID0gZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3BfZmVjaGEnKS52YWx1ZTsKICAgIGNvbnN0IGNhcFJlYWwgPSBwYXJzZUZsb2F0KGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdwX2NhcF9yZWFsJykudmFsdWUpfHwwOwogICAgY29uc3QgaW50UmVhbCA9IHBhcnNlRmxvYXQoZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3BfaW50X3JlYWwnKS52YWx1ZSl8fDA7CiAgICBjb25zdCBtb250byA9IGNhcFJlYWwgKyBpbnRSZWFsOwogICAgY29uc3QgY3VvdGFSb3cgPSBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncF9jdW90YScpLnZhbHVlOwogICAgaWYoIWZlY2hhKXsgdG9hc3QoJ1NlbGVjY2lvbmEgbGEgZmVjaGEgZGUgcGFnby4nLCB0cnVlKTsgcmV0dXJuOyB9CiAgICBpZihtb250bzw9MCl7IHRvYXN0KCdJbmdyZXNhIGFsIG1lbm9zIGVsIG1vbnRvIGRlIGFtb3J0aXphY2nDs24gbyBpbnRlcsOpcy4nLCB0cnVlKTsgcmV0dXJuOyB9CiAgICBjb25zdCBidG4gPSBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnc2F2ZVBheW1lbnRCdG4nKTsgYnRuLmRpc2FibGVkPXRydWU7CiAgICBjYWxsU2VydmVyKCdyZWdpc3RyYXJQYWdvJywgW3sgbGluZWFJZCwgZmVjaGEsIG1vbnRvLCBjYXBpdGFsUmVhbDogY2FwUmVhbCwgaW50ZXJlc1JlYWw6IGludFJlYWwsIGN1b3RhUm93OiBjdW90YVJvdyA/IE51bWJlcihjdW90YVJvdykgOiBudWxsIH1dLCByZXM9PnsKICAgICAgY2xvc2VNb2RhbCgpOyByZWxvYWREYXRhKCgpPT57IHJlbmRlckNvbnRlbnQoKTsgdG9hc3QoJ1BhZ28gJytyZXMuaWQrJyByZWdpc3RyYWRvLicpOyB9KTsKICAgIH0sICgpPT57IGJ0bi5kaXNhYmxlZD1mYWxzZTsgfSk7CiAgfSk7Cn0KZnVuY3Rpb24gb3BlbkJ1bGtVcGxvYWRNb2RhbCgpewogIGlmKCFsaW5lcy5sZW5ndGgpeyB0b2FzdCgnTm8gaGF5IGzDrW5lYXMgYWN0aXZhcyBwYXJhIGNhcmdhciBjdW90YXMuJywgdHJ1ZSk7IHJldHVybjsgfQogIG9wZW5Nb2RhbChgCiAgICA8ZGl2IGNsYXNzPSJtb2RhbC1oZWFkZXIiPjxkaXY+PGgyPkNhcmdhIE1hc2l2YSBkZSBBbW9ydGl6YWNpw7NuPC9oMj48ZGl2IGNsYXNzPSJzdWIiPlBlZ2EgZWwgZGV0YWxsZSBkZWwgcXVlbnRlIGRlIHBhZ29zPC9kaXY+PC9kaXY+PjxidXR0b24gY2xhc3M9Im1vZGFsLWNsb3NlIiBvbmNsaWNrPSJjbG9zZU1vZGFsKCkiPiR7aWMoJ3gnKX08L2J1dHRvbj48L2Rpdj4KICAgIDxkaXYgY2xhc3M9Im1vZGFsLWJvZHkiPgogICAgICA8ZGl2IGNsYXNzPSJmb3JtLWZpZWxkIGZ1bGwiIHN0eWxlPSJtYXJnaW4tYm90dG9tOjEycHg7Ij48bGFiZWw+TMOtbmVhIGRlIENyw6lkaXRvPC9sYWJlbD48c2VsZWN0IGlkPSJiX2xpbmVhIj4ke2wpPjy8L2Rpdj4KICAgICAgPGRpdiBjbGFzcz0ibW9kYWwtZm9vdGVyIj48YnV0dG9uIGNsYXNzPSJidG4iIG9uY2xpY2s9ImNsb3NlTW9kYWwoKSI+Q2FuY2VsYXI8L2J1dHRvbj48YnV0dG9uIGNsYXNzPSJidG4gYnRuLXByaW1hcnkiIGlkPSJ1cGxvYWRQbGFuQnRuIj4ke2ljKCdoaWlzdG9yJykwIFZhbGlkYXIgeSBDYXJnYXI8L2JpdG9uPjwvZGl2PmApOwoKICBsZXQgX3JlcGxhY2VNb2RlID0gZmFsc2U7CiAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ21vZGVBZGRCdG4nKS5hZGRFdmVudExpc3RlbmVyKCdjbGlkk', ()=>{
     _replaceMode = false;
     document.getElementById('modeAddBtn').style.fontWeight = '700';
     document.getElementById('modeReplaceBtn').style.fontWeight = '';
@@ -1855,15 +1566,14 @@ function openBulkUploadModal(){
         closeModal(); reloadData(()=>{ renderContent(); toast('Plan reemplazado: '+res.added+' cuota(s) cargadas.'); });
       }, ()=>{ btn.disabled = false; });
     } else {
-      callServer('cargaMasivaCuotas', [lineaId, rows], res=>{
-        if(res.dup>0) toast(res.dup+' fila(s) duplicada(s) omitida(s).', true);
+      callServer('cargaMasivaCuotas', [lineaId, rows], res=>{        if(res.dup>0) toast(res.dup+' fila(s) duplicada(s) omitida(s).', true);
         closeModal(); reloadData(()=>{ renderContent(); toast(res.added+' cuota(s) cargada(s) correctamente.'); });
       }, ()=>{ btn.disabled = false; });
     }
   });
 }
 
-/* ================= INIT ================= */
+/* ================= IMTT ================== */
 document.addEventListener('click', e=>{
   if(!e.target.closest('#notifBtn') && !e.target.closest('#notifDrop')) { if(state.notifOpen){ state.notifOpen=false; const d=document.getElementById('notifDrop'); if(d) d.classList.remove('open'); } }
   if(!e.target.closest('#userChip') && !e.target.closest('#userDrop')) { if(state.userMenuOpen){ state.userMenuOpen=false; const d=document.getElementById('userDrop'); if(d) d.classList.remove('open'); } }
