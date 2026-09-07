@@ -1,5 +1,6 @@
 /* ================= ICONS ================= */
 const ICONS = {
+  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   dashboard: '<path d="M4 4h6v7H4zM14 4h6v4h-6zM14 12h6v8h-6zM4 14h6v6H4z"/>',
   bank: '<path d="M3 21h18M4 10h16M12 3l9 5H3l9-5ZM5 10v9M9 10v9M15 10v9M19 10v9"/>',
   ops: '<path d="M17 3l4 4-4 4M21 7H7a4 4 0 0 0-4 4v1M7 21l-4-4 4-4M3 17h14a4 4 0 0 0 4-4v-1"/>',
@@ -257,9 +258,10 @@ function renderShell(){
         <button class="collapse-btn" id="collapseBtn">${ic(state.sidebarCollapsed?'chevronRight':'chevronLeft')}<span class="nav-label">Colapsar</span></button>
       </div>
     </div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <div class="main">
       <div class="topbar">
-        <div class="topbar-left"><b>${moduleTitle()}</b></div>
+        <div class="topbar-left"><button class="mob-menu-btn" id="mobMenuBtn">${ic("menu")}</button><b>${moduleTitle()}</b></div>
         <div class="topbar-right">
           <span class="fx-note">1 USD = ₡${FX.CRC.toFixed(2)}</span>
           <button class="btn btn-primary" id="currencyToggle">${ic('cash')} Ver en ${state.currency==='USD'?'Colones (₡)':'Dólares ($)'}</button>
@@ -292,8 +294,22 @@ function renderShell(){
     </div>`;
 
   document.getElementById('sidebar').querySelectorAll('.nav-item').forEach(el=>{
-    el.addEventListener('click', ()=>{ state.activeModule = el.dataset.mod; state.notifOpen=false; state.userMenuOpen=false; renderShell(); });
+    el.addEventListener('click', ()=>{ state.activeModule = el.dataset.mod; state.notifOpen=false; state.userMenuOpen=false; const sob=document.getElementById('sidebarOverlay'); if(sob) sob.classList.remove('open'); document.getElementById('sidebar').classList.remove('mobile-open'); renderShell(); });
   });
+  const mobMenuBtn = document.getElementById('mobMenuBtn');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
+  if(mobMenuBtn){
+    mobMenuBtn.addEventListener('click', ()=>{
+      document.getElementById('sidebar').classList.toggle('mobile-open');
+      if(sidebarOverlay) sidebarOverlay.classList.toggle('open');
+    });
+  }
+  if(sidebarOverlay){
+    sidebarOverlay.addEventListener('click', ()=>{
+      document.getElementById('sidebar').classList.remove('mobile-open');
+      sidebarOverlay.classList.remove('open');
+    });
+  }
   document.getElementById('collapseBtn').addEventListener('click', ()=>{
     state.sidebarCollapsed = !state.sidebarCollapsed;
     localStorage.setItem('erp_sidebar', state.sidebarCollapsed?'1':'0');
@@ -742,7 +758,7 @@ function openNewLineScheduleModal(){
     const desembolso = document.getElementById('s_desembolso').value;
     if(!numOp){ toast('Ingresa el N° de Operación.', true); return; }
     if(monto<=0){ toast('Ingresa un monto válido.', true); return; }
-    if(plazo<=0 || plazo>360){ toast('El plazo debe estar entre 1 y 360 meses.', true); return; }
+    if(plazo<=0 || plazo>360){ toast('El plazo debe estar estar estar entre 1 y 360 meses.', true); return; }
     if(!primerPago || !desembolso){ toast('Completa las fechas de desembolso y primer pago.', true); return; }
     scheduleData = calcularAmortizacion(monto, tasa, plazo, primerPago);
     scheduleData.banco = banco; scheduleData.numOp = numOp; scheduleData.monto = monto; scheduleData.moneda = moneda; scheduleData.tasa = tasa; scheduleData.plazo = plazo; scheduleData.desembolso = desembolso; scheduleData.primerPago = primerPago;
@@ -869,8 +885,8 @@ function calendarioHtml(){
     </div>
     <div class="table-card" style="margin-top:14px;">
       <div class="panel-header-dark">${ic('clock')}<span>${state.calSelectedDate ? 'Eventos del '+state.calSelectedDate : 'Selecciona un día para ver el detalle'}</span></div>
-      <div class="table-scroll" style="max-height:380px;">
-        <table><thead><tr><th>Origen</th><th>Referencia</th><th>Banco</th><th class="text-right">Amortización</th><th class="text-right">Interés</th><th class="text-right">Total</th><th>Estado</th></tr></thead>
+      <div clas="table-scroll" style="max-height:380px;">
+        <table><thead><tr><th>Origen</th><th>Referencia</th><th>Banco</th><th class="text-right">Amortización</th><th class="text-right">Interés:</th><th class="text-right">Total</th><th>Estado</th></tr></thead>
         <tbody>${selected.map(e=>`<tr><td>${e.origen}</td><td><b>${e.numOp||e.ref}</b><div class="text-muted" style="font-size:10px;">${e.ref}</div></td><td>${e.banco}</td><td class="text-right mono">${e.capital>0?fmtNative(e.capital,e.moneda):'—'}</td><td class="text-right mono">${e.interes>0?fmtNative(e.interes,e.moneda):'—'}</td><td class="text-right mono"><b>${fmtNative(e.capital+e.interes+e.extra,e.moneda)}</b></td><td><span class="badge ${e.estado==='Vencimiento'?'badge-red':'badge-amber'}">${e.estado}</span></td></tr>`).join('') || '<tr><td colspan="7"><div class="empty-state">Sin eventos este día.</div></td></tr>'}</tbody></table>
       </div>
     </div>`;
@@ -889,7 +905,7 @@ function proyeccionesRows(){
     if(c.moneda==='CRC'){ map[mk].capitalCRC+=c.capital; map[mk].interesCRC+=c.interes; }
     else { map[mk].capitalUSD+=c.capital; map[mk].interesUSD+=c.interes; }
   });
-  return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([mk,v])=>({
+  return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([mk_v])=>({
     mes:mk, ...v, estado: v.pendientes===0 ? 'Pagado' : (v.pendientes===v.total ? 'Proyectado' : 'Parcial')
   }));
 }
@@ -975,9 +991,8 @@ function proyeccionesHtml(){
                                                                                                                                                                                                                               <select class="tb-select" id="deudaGranSel" style="min-width:140px;margin:0;">
                                                                                                                                                                                                                                           <option value="mes" ${gran==='mes'?'selected':''}>Vista Mensual</option>
                                                                                                                                                                                                                                                     <option value="anio" ${gran==='anio'?'selected':''}>Vista Anual</option>
-                                                                                                                                                                                                                                                            </select>
-                                                                                                                                                                                                                                                                  </div>
-                                                                                                                                                                                                                                                                        <div class="table-scroll" style="max-height:260px;overflow-x:auto;">
+                                                                                                                                                                                                                                                                                          </select>
+                                                                                                                                                                                                                                                                                                                      <div class="table-scroll" style="max-height:260px;overflow-x:auto;">
                                                                                                                                                                                                                                                                                 <table>
                                                                                                                                                                                                                                                                                           <thead><tr><th style="min-width:180px;">Concepto</th>${rows.map(r=>`<th class="text-right">${r.periodo}</th>`).join('')}</tr></thead>
                                                                                                                                                                                                                                                                                                     <tbody><tr><td><b>Saldo Total de Deuda (${state.currency})</b></td>${rows.map(r=>`<td class="text-right mono">${fmtUSD(r.totalUSD)}</td>`).join('') || `<td><div class="empty-state">Sin datos.</div></td>`}</tr></tbody>
