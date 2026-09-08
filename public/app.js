@@ -169,7 +169,7 @@ function applyBootstrap(data){
   state.sheetUrl = data.sheetUrl; state.empresa = data.empresa;
   lines = data.lines; paymentPlans = data.paymentPlans; lineasCanceladas = data.lineasCanceladas; history = data.history;
   leasingContratos = data.leasingContratos; leasingPagos = data.leasingPagos; usuarios = data.usuarios; auditLog = data.auditLog;
-  bankLimits = data.bankLimits; FX = data.fx; historicoDeuJe = data.historicoDeuda||{};
+  bankLimits = data.bankLimits; FX = data.fx; historicoDeuda = data.historicoDeuda||{};
 }
 function reloadData(cb, hintEmail){
   fetch('/api/action', {
@@ -381,7 +381,7 @@ function debtByCurrencyRows(){
     map[l.moneda].dispuesto += lineaSaldoActual(l);
   });
   const totalUSD = Object.entries(map).reduce((s,[cur,v])=>s+toUSD(v.dispuesto,cur),0);
-  return Object.entries(map).map(([cur,V])=>({
+  return Object.entries(map).map(([cur,v])=>({
     moneda:cur, nativo:v.dispuesto, equivalenteUSD:toUSD(v.dispuesto,cur),
     pct: totalUSD ? (toUSD(v.dispuesto,cur)/totalUSD*100) : 0
   })).sort((a,b)=>b.equivalenteUSD-a.equivalenteUSD);
@@ -1285,7 +1285,7 @@ function interesesHtml(d){
       ${tot.ejecutado.usd ? `<div class="kpi-sub" style="color:#FF6600;">${fmtNum(tot.ejecutado.usd,'USD')}</div>` : ''}
     </div>
     <div class="kpi-card">
-      <span class="kpi-label">Proyección ${pSig}|/span>
+      <span class="kpi-label">Proyección ${pSig}</span>
       <div class="kpi-value" style="font-size:18px;color:#FF6600;">${fmtNum(tot.proyeccion.crc,'CRC')}</div>
       ${tot.proyeccion.usd ? `<div class="kpi-sub" style="color:#FF6600;">${fmtNum(tot.proyeccion.usd,'USD')}</div>` : ''}
     </div>
