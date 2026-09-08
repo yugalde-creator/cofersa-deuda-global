@@ -1730,7 +1730,7 @@ function openNewPaymentModal(){
     const lineaId = document.getElementById('p_linea').value;
     document.getElementById('p_cuota').innerHTML = pendingCuotaOptionsHtml(lineaId);
   }
-  function fmtPay(n, cur){ const s=cur==='CRC'?'₡':'$'; return s+(n||0).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2}� }
+  function fmtPay(n, cur){ const s=cur==='CRC'?'₡':'$'; return s+(n||0).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function fmtDiff(diff, cur){
     if(diff===null||isNaN(diff)) return '—';
     const abs = Math.abs(diff);
