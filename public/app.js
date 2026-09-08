@@ -112,7 +112,7 @@ let state = {
   datosSearch: '',
   historicoTab: 'canceladas',
   deudaGranularidad: 'mes',
-  proyeccionFiltro: 'futuro',
+  proyeccionFiltro: '12meses',
   lineEstadoFilter: '', pagoEstadoFilter: '', histEstadoFilter: '', leasingEstadoFilter: '',
   monedaFilter: '', tipoFilter: '',
 };
@@ -910,6 +910,7 @@ function proyeccionesHtml(){
   let rows = proyeccionesRows();
   if(filtro==='futuro') rows = rows.filter(r => r.mes >= mesActual);
   else if(filtro==='proyectado') rows = rows.filter(r => r.estado==='Proyectado' || r.estado==='Parcial');
+  else if(filtro==='12meses'){ const fin=new Date(now0); fin.setMonth(fin.getMonth()+12); const finKey=fin.toISOString().slice(0,7); rows=rows.filter(r=>r.mes>=mesActual && r.mes<=finKey); }
 
   const tot = rows.reduce((s,r)=>({
     capitalCRC: s.capitalCRC+r.capitalCRC, interesCRC: s.interesCRC+r.interesCRC,
@@ -920,7 +921,7 @@ function proyeccionesHtml(){
   const fBtn = (key, label) => `<button class="btn${filtro===key?' btn-primary':''}" data-pfiltro="${key}" style="font-size:12px;padding:4px 10px;">${label}</button>`;
 
   const kpiRow = `<div class="kpi-grid" style="margin-bottom:12px;">
-    <div class="kpi-card"><span class="kpi-label">Total Capital (prox. ${rows.filter(r=>r.estado!=='Pagado').length} meses)</span>
+    <div class="kpi-card"><span class="kpi-label">Total Capital — ${filtro==='12meses'?'Próximos 12 meses':rows.filter(r=>r.estado!=='Pagado').length+' meses'}</span>
       <div class="kpi-value" style="font-size:18px;">₡${(tot.capitalCRC).toLocaleString('es-CR',{maximumFractionDigits:0})}</div>
       ${tot.capitalUSD ? `<div class="kpi-sub">$${tot.capitalUSD.toLocaleString('es-CR',{maximumFractionDigits:0})}</div>` : ''}
     </div>
@@ -928,7 +929,7 @@ function proyeccionesHtml(){
       <div class="kpi-value" style="font-size:18px;color:#C55A11;">₡${(tot.interesCRC).toLocaleString('es-CR',{maximumFractionDigits:0})}</div>
       ${tot.interesUSD ? `<div class="kpi-sub" style="color:#C55A11;">$${tot.interesUSD.toLocaleString('es-CR',{maximumFractionDigits:0})}</div>` : ''}
     </div>
-    <div class="kpi-card"><span class="kpi-label">Total Servicio de Deuda (${state.currency})</span>
+    <div class="kpi-card"><span class="kpi-label">Total Capital + Interés (${state.currency})</span>
       <div class="kpi-value" style="font-size:18px;color:#1F3864;">${fmtUSD(totUSD)}</div>
     </div>
   </div>`;
@@ -939,7 +940,7 @@ function proyeccionesHtml(){
       ${ic('trending')}<span>Proyección Mensual de Servicio de Deuda</span>
       <div class="spacer"></div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-        ${fBtn('futuro','Desde hoy')}${fBtn('proyectado','Pendientes')}${fBtn('todos','Histórico completo')}
+        ${fBtn('12meses','Próximos 12 meses')}${fBtn('futuro','Desde hoy')}${fBtn('proyectado','Pendientes')}${fBtn('todos','Histórico completo')}
       </div>
     </div>
     <div class="table-scroll" style="max-height:calc(100vh - 280px);">
