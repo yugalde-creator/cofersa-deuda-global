@@ -1491,7 +1491,7 @@ function bindContentEvents(){
     document.getElementById('monedaFilterSel').addEventListener('change', e=>{ state.monedaFilter=e.target.value; renderContent(); });
     document.getElementById('tipoFilterSel').addEventListener('change', e=>{ state.tipoFilter=e.target.value; renderContent(); });
     document.getElementById('lineEstadoSel').addEventListener('change', e=>{ state.lineEstadoFilter=e.target.value; renderContent();})
-    document.getElementById('exportLinesBtn').addEventListener('click', ()=>{ exportCSV(filteredLines(), ['id','banco','tipo','moneda','aprobado','tasa','vencimiento'], 'lineas_credito.csv'); toast('Archivo CSV exportado.'); });
+    document.getElementById('exportLinesBtn').addEventListener('click', ()=>{ exportCSV(filteredLines().map(l=>{const s=lineaSaldoActual(l);return{numOp:l.numOp||l.id,banco:l.banco,tipo:l.tipo,moneda:l.moneda,aprobado:l.aprobado,saldo:s,pct:l.aprobado?Math.round(s/l.aprobado*100):0,tasa:l.tasa,vencimiento:l.vencimiento,estado:l._cancelada?'Cancelada':estadoLinea(l).label}}), ['numOp','banco','tipo','moneda','aprobado','saldo','pct','tasa','vencimiento','estado'], 'lineas_credito.csv'); toast('Archivo CSV exportado.'); });
     document.getElementById('newLineBtn').addEventListener('click', ()=> guard(openNewLineScheduleModal));
     bindRowClicks();
   }
