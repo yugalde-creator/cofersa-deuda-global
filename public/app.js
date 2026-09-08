@@ -81,7 +81,7 @@ function estadoLinea(l){
   if(saldo<=0 && (paymentPlans[l.id]||[]).length) return {label:'Cancelada', cls:'badge-green'};
   if(dv!==null && dv<0) return {label:'Vencida', cls:'badge-red', detail:'hace '+Math.abs(dv)+' día(s)'};
   if(dp!==null && dp>=0 && dp<7) return {label:'Activa', cls:'badge-amber', detail:'en '+dp+' día(s)'};
-  return {label:'Activa', cls:'badge-blue', detail: dv!==null ? ('vence en '+ds+' días') : ''};
+  return {label:'Activa', cls:'badge-blue', detail: dv!==null ? ('vence en '+dv+' días') : ''};
 }
 function leasingSaldoActual(contrato){
   const plan = leasingPagos[contrato.id]||[];
