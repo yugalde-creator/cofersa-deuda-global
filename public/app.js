@@ -253,6 +253,7 @@ function renderShell(){
         <div class="nav-item ${state.activeModule==='usuarios'?'active':''}" data-mod="usuarios">${ic('users')}<span class="nav-label">Usuarios</span></div>
         <div class="nav-group-label">Control</div>
         <div class="nav-item ${state.activeModule==='audit'?'active':''}" data-mod="audit">${ic('audit')}<span class="nav-label">Seguridad y Auditoría</span></div>
+      <div class="nav-item ${state.activeModule==='devhub'?'active':''}" data-mod="devhub">${ic('database')}<span class="nav-label">Hub de Desarrollo</span></div>
       </nav>
       <div class="sidebar-footer">
         <button class="collapse-btn" id="collapseBtn">${ic(state.sidebarCollapsed?'chevronRight':'chevronLeft')}<span class="nav-label">Colapsar</span></button>
@@ -359,6 +360,7 @@ function renderContent(){
   else if(state.activeModule==='carga') c.innerHTML = cargaHtml();
   else if(state.activeModule==='usuarios') c.innerHTML = usuariosHtml();
   else if(state.activeModule==='audit') c.innerHTML = auditHtml();
+  else if(state.activeModule==='devhub') c.innerHTML = devhubHtml();
   bindContentEvents();
 }
 
@@ -818,6 +820,68 @@ function auditHtml(){
 }
 
 /* ================= CUOTAS CONSOLIDADAS (Operaciones + Leasing) ================= */
+async function devhubSendReport(){
+  const btn=document.getElementById('btn-send-report');
+  const res=document.getElementById('report-result');
+  if(!btn||!res)return;
+  btn.disabled=true; btn.textContent='Enviando...';
+  res.style.display='block'; res.style.color='var(--text-secondary)'; res.textContent='Enviando reporte...';
+  try{
+    const resp=await fetch('/api/cron/reporte-diario');
+    const data=await resp.json();
+    if(data.ok){
+      res.style.color='#16a34a';
+      const sC=Math.round(data.saldoCRC||0).toLocaleString('es-CR');
+      const sU=Math.round(data.saldoUSD||0).toLocaleString('en-US');
+      res.textContent='Reporte enviado. Saldo CRC: colones'+sC+' | USD: dolar'+sU+' | Proximos: '+data.proxVencer+' | Vencidas: '+data.vencidas;
+    }else{
+      res.style.color='#dc2626'; res.textContent='Error: '+(data.error||'Desconocido');
+    }
+  }catch(e){res.style.color='#dc2626'; res.textContent='Error de red: '+e.message;}
+  btn.disabled=false; btn.innerHTML='Enviar Reporte Ahora';
+}
+async function devhubCheckStatus(){
+  const el=document.getElementById('sys-status-list');
+  if(!el)return;
+  el.innerHTML='Verificando...';
+  try{
+    const resp=await fetch('/api/cron/reporte-diario');
+    const data=await resp.json();
+    const rows=[
+      {label:'Google Sheets API',ok:!String(data.error||'').includes('sheet'),detail:'readRows'},
+      {label:'Endpoint /api/cron',ok:resp.status<500,detail:'HTTP '+resp.status},
+      {label:'Email (nodemailer)',ok:data.ok,detail:data.ok?'OK':String(data.error||'Ver EMAIL_PASS').slice(0,40)},
+    ];
+    el.innerHTML=rows.map(i=>'<div style="display:flex;align-items:center;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border)">'+
+      '<span style="color:'+(i.ok?'#16a34a':'#dc2626')+'">'+(i.ok?'OK':'ERR')+'</span> '+
+      '<span>'+i.label+'</span>'+
+      '<span style="margin-left:auto;color:var(--text-secondary);font-size:.8rem">'+i.detail+'</span></div>'
+    ).join('');
+  }catch(e){el.innerHTML='Error: '+e.message;}
+}
+function devhubHtml(){
+  return '<div class="route-header"><h2>Hub de Desarrollo</h2><p class="route-subtitle">Administracion y monitoreo del sistema</p></div>'+
+  '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1.5rem">'+
+  '<div class="card"><div class="card-header"><h3 class="card-title">'+ic('report')+' Reporte Diario por Email</h3></div>'+
+  '<div class="card-body"><p style="margin-bottom:1rem;color:var(--text-secondary);font-size:.9rem">Se envia automaticamente a <strong>yugalde@cofersa.cr</strong> cada dia a las <strong>7:00am (CR)</strong>.</p>'+
+  '<div style="background:var(--bg-secondary,#f8f9fa);padding:.75rem 1rem;border-radius:.5rem;margin-bottom:1rem;font-size:.82rem;line-height:1.8">'+
+  '<strong>Cron:</strong> 0 13 * * * (13:00 UTC)<br><strong>Endpoint:</strong> /api/cron/reporte-diario<br><strong>Destinatario:</strong> yugalde@cofersa.cr</div>'+
+  '<button class="btn btn-primary" id="btn-send-report" onclick="devhubSendReport()">'+ic('report')+' Enviar Reporte Ahora</button>'+
+  '<div id="report-result" style="margin-top:.75rem;display:none;font-size:.88rem"></div></div></div>'+
+  '<div class="card"><div class="card-header"><h3 class="card-title">'+ic('check')+' Estado del Sistema</h3></div>'+
+  '<div class="card-body"><div id="sys-status-list" style="font-size:.88rem;color:var(--text-secondary)">Haz clic en Verificar.</div>'+
+  '<button class="btn btn-ghost" onclick="devhubCheckStatus()" style="margin-top:1rem;font-size:.85rem">'+ic('filter')+' Verificar Conectividad</button></div></div>'+
+  '<div class="card" style="grid-column:1/-1"><div class="card-header"><h3 class="card-title">'+ic('database')+' Variables de Entorno Requeridas</h3></div>'+
+  '<div class="card-body"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem">'+
+  '<div class="kpi-card"><div class="kpi-label">GOOGLE_SERVICE_ACCOUNT_JSON</div><div style="font-size:.85rem;color:#16a34a;margin-top:.25rem">Configurada (Sheets activo)</div></div>'+
+  '<div class="kpi-card"><div class="kpi-label">EMAIL_USER</div><div style="font-size:.85rem;color:#16a34a;margin-top:.25rem">Configurada</div></div>'+
+  '<div class="kpi-card"><div class="kpi-label">EMAIL_PASS</div><div style="font-size:.85rem;color:#f59e0b;margin-top:.25rem">Requiere App Password</div></div>'+
+  '<div class="kpi-card"><div class="kpi-label">CRON_SECRET</div><div style="font-size:.85rem;color:var(--text-secondary);margin-top:.25rem">Opcional</div></div></div>'+
+  '<div style="margin-top:1rem;padding:.75rem 1rem;background:#fffbeb;border-radius:.5rem;font-size:.84rem;border-left:3px solid #f59e0b">'+
+  'Para activar emails: myaccount.google.com > Seguridad > Contrasenas de aplicacion > crea "Cofersa Deuda" > actualiza EMAIL_PASS en Vercel con el codigo de 16 caracteres.</div>'+
+  '</div></div></div>';
+}
+
 function allCuotasConMeta(){
   const arr = [];
   Object.entries(paymentPlans).forEach(([lid,plan])=>{
@@ -1388,7 +1452,7 @@ function interesesHtml(d){
 }
 
 function moduleTitle(){
-  return {dashboard:'Panel de Control', lines:'Operaciones', calendario:'Calendario de Pagos', proyecciones:'Proyecciones', leasing:'Leasing Financiero', ops:'Conciliación', historico:'Histórico', intereses:'Apartado de Intereses', reportes:'Reportes', centrodatos:'Centro de Datos', carga:'Importar histórico', usuarios:'Usuarios', audit:'Seguridad y Auditoría'}[state.activeModule];
+  return {dashboard:'Panel de Control', lines:'Operaciones', calendario:'Calendario de Pagos', proyecciones:'Proyecciones', leasing:'Leasing Financiero', ops:'Conciliación', historico:'Histórico', intereses:'Apartado de Intereses', reportes:'Reportes', centrodatos:'Centro de Datos', carga:'Importar histórico', usuarios:'Usuarios', audit:'Seguridad y Auditoría', devhub:'Hub de Desarrollo'}[state.activeModule];
 }
 
 /* ================= REPORTES ================= */
