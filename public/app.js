@@ -824,22 +824,45 @@ async function devhubSendReport(){
   const btn=document.getElementById('btn-send-report');
   const res=document.getElementById('report-result');
   if(!btn||!res)return;
-  btn.disabled=true; btn.textContent='Enviando...';
-  res.style.display='block'; res.style.color='var(--text-secondary)'; res.textContent='Enviando reporte...';
+  btn.disabled=true; btn.textContent='Cargando datos...';
+  res.style.display='block'; res.innerHTML='<span style="color:var(--text-secondary)">Obteniendo reporte del servidor...</span>';
   try{
     const resp=await fetch('/api/cron/reporte-diario');
-    const data=await resp.json();
-    if(data.ok){
-      res.style.color='#16a34a';
-      const sC=Math.round(data.saldoCRC||0).toLocaleString('es-CR');
-      const sU=Math.round(data.saldoUSD||0).toLocaleString('en-US');
-      res.textContent='Reporte enviado. Saldo CRC: colones'+sC+' | USD: dolar'+sU+' | Proximos: '+data.proxVencer+' | Vencidas: '+data.vencidas;
-    }else{
-      res.style.color='#dc2626'; res.textContent='Error: '+(data.error||'Desconocido');
+    const d=await resp.json();
+    if(d.error){ res.innerHTML='<span style="color:#dc2626">Error: '+d.error+'</span>'; btn.disabled=false; btn.innerHTML='Enviar Reporte Ahora'; return; }
+    const sC=Math.round(d.saldoCRC||0).toLocaleString('es-CR');
+    const sU=Math.round(d.saldoUSD||0).toLocaleString('en-US');
+    const sT=Math.round(d.saldoTotalCRC||0).toLocaleString('es-CR');
+    let html='<div style="background:var(--bg-secondary,#f3f4f6);border-radius:.5rem;padding:1rem;margin-top:.5rem">';
+    html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:.75rem">';
+    html+='<div style="text-align:center"><div style="font-size:.75rem;color:var(--text-secondary)">Saldo CRC</div><div style="font-weight:600">₡'+sC+'</div></div>';
+    html+='<div style="text-align:center"><div style="font-size:.75rem;color:var(--text-secondary)">Saldo USD</div><div style="font-weight:600">$'+sU+'</div></div>';
+    html+='<div style="text-align:center"><div style="font-size:.75rem;color:var(--text-secondary)">Total CRC</div><div style="font-weight:600">₡'+sT+'</div></div>';
+    html+='</div>';
+    if(d.cuotasMesDetalle&&d.cuotasMesDetalle.length){
+      html+='<div style="font-size:.82rem;font-weight:600;margin-bottom:.35rem">Cuotas del mes ('+d.cuotasMes+')</div>';
+      html+='<table style="width:100%;font-size:.8rem;border-collapse:collapse">';
+      html+='<tr style="color:var(--text-secondary)"><th style="text-align:left;padding:.2rem .4rem">Banco</th><th style="text-align:right;padding:.2rem .4rem">Capital</th><th style="text-align:right;padding:.2rem .4rem">Interés</th><th style="text-align:right;padding:.2rem .4rem">Fecha</th></tr>';
+      d.cuotasMesDetalle.forEach(c=>{
+        html+='<tr><td style="padding:.2rem .4rem">'+c.banco+'</td><td style="text-align:right;padding:.2rem .4rem">'+Math.round(c.capital).toLocaleString('es-CR')+'</td><td style="text-align:right;padding:.2rem .4rem">'+Math.round(c.interes||0).toLocaleString('es-CR')+'</td><td style="text-align:right;padding:.2rem .4rem;white-space:nowrap">'+c.fecha+'</td></tr>';
+      });
+      html+='</table>';
+    } else { html+='<div style="font-size:.82rem;color:var(--text-secondary)">Sin cuotas pendientes este mes.</div>'; }
+    if(d.vencidas>0){
+      html+='<div style="margin-top:.5rem;padding:.4rem .6rem;background:#fef2f2;border-radius:.4rem;font-size:.82rem;color:#dc2626">'+d.vencidas+' línea(s) vencida(s)</div>';
     }
-  }catch(e){res.style.color='#dc2626'; res.textContent='Error de red: '+e.message;}
+    if(d.proxVencer>0){
+      html+='<div style="margin-top:.35rem;padding:.4rem .6rem;background:#fffbeb;border-radius:.4rem;font-size:.82rem;color:#d97706">'+d.proxVencer+' línea(s) vence en 90 días</div>';
+    }
+    html+='<div style="margin-top:.75rem;font-size:.8rem;color:var(--text-secondary)">';
+    if(d.emailSent){ html+='✓ Email enviado a yugalde@cofersa.cr'; }
+    else { html+='Email no enviado ('+( d.emailError||'sin error')+')'; }
+    html+='</div></div>';
+    res.innerHTML=html;
+  }catch(e){res.innerHTML='<span style="color:#dc2626">Error: '+e.message+'</span>';}
   btn.disabled=false; btn.innerHTML='Enviar Reporte Ahora';
 }
+
 async function devhubCheckStatus(){
   const el=document.getElementById('sys-status-list');
   if(!el)return;
