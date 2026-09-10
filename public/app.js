@@ -1896,7 +1896,7 @@ function openNewPaymentModal(){
     const btn = document.getElementById('savePaymentBtn'); btn.disabled=true;
     callServer('registrarPago', [{ lineaId, fecha, monto, capitalReal: capReal, interesReal: intReal, cuotaRow: cuotaRow ? Number(cuotaRow) : null }], res=>{
       fetch('/api/notificar-pago',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineaId,fecha,capitalReal:capReal,interesReal:intReal})}).catch(()=>{});
-      closeModal(); reloadData(()=>{ renderContent(); toast('Pago '+res.id+' registrado.'); });
+      fetch('/api/notificar-pago',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineaId,fecha,capitalReal:capReal,interesReal:intReal})}).catch(()=>{}); fetch('/api/notificar-pago',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineaId,fecha,capitalReal:capReal,interesReal:intReal})}).catch(()=>{}); closeModal(); reloadData(()=>{ renderContent(); toast('Pago '+res.id+' registrado.'); });
     }, ()=>{ btn.disabled=false; });
   });
 }
