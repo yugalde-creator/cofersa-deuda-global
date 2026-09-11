@@ -1,5 +1,5 @@
-const nodemailer = require('nodemailer');
-const { readRows, SHEETS } = require('../../../lib/sheets');
+import nodemailer from 'nodemailer';
+import { readRows, SHEETS } from '../../lib/sheets.js';
 
 function parseMonto(v) {
   if (!v) return 0;
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
       '<h2 style="color:#1a5276;border-bottom:2px solid #1a5276;padding-bottom:.5rem">Comprobante de Pago - COFERSA</h2>'+
       '<table style="width:100%;border-collapse:collapse;margin-bottom:1.5rem">'+
       '<tr><td style="padding:.4rem .6rem;color:#666">Banco</td><td style="padding:.4rem .6rem;font-weight:600">'+linea.Banco+'</td></tr>'+
-      '<tr style="background:#f8f9fa"><td style="padding:.4rem .6rem;color:#666">N Operacion</td><td style="padding:.4rem .6rem;font-weight:600">'+linea.NumOp+'</td></tr>'+
+      '<tr style="background:#f8f9fa"><td style="padding:.4rem .6rem;color:#666">N\u00famero Operaci\u00f3n</td><td style="padding:.4rem .6rem;font-weight:600">'+linea.NumOp+'</td></tr>'+
       '<tr><td style="padding:.4rem .6rem;color:#666">Moneda</td><td style="padding:.4rem .6rem">'+moneda+'</td></tr>'+
       '<tr style="background:#f8f9fa"><td style="padding:.4rem .6rem;color:#666">Fecha de Pago</td><td style="padding:.4rem .6rem">'+fmtDateDisplay(fecha)+'</td></tr>'+
       '<tr><td style="padding:.4rem .6rem;color:#666">Periodo</td><td style="padding:.4rem .6rem">'+fmtDateDisplay(fechaAnterior)+' al '+fmtDateDisplay(fecha)+'</td></tr>'+
@@ -75,8 +75,8 @@ export default async function handler(req, res) {
       '<table style="width:100%;border-collapse:collapse;margin-bottom:1.5rem">'+
       '<thead><tr style="background:#1a5276;color:#fff"><th style="padding:.5rem;text-align:left">Concepto</th><th style="padding:.5rem;text-align:right">Monto ('+moneda+')</th></tr></thead>'+
       '<tbody>'+
-      '<tr><td style="padding:.4rem .6rem;border-bottom:1px solid #eee">Amortizacion de Capital</td><td style="padding:.4rem .6rem;text-align:right">'+capFmt+'</td></tr>'+
-      '<tr style="background:#f8f9fa"><td style="padding:.4rem .6rem;border-bottom:1px solid #eee">Interes</td><td style="padding:.4rem .6rem;text-align:right">'+intFmt+'</td></tr>'+
+      '<tr><td style="padding:.4rem .6rem;border-bottom:1px solid #eee">Amortizaci\u00f3n de Capital</td><td style="padding:.4rem .6rem;text-align:right">'+capFmt+'</td></tr>'+
+      '<tr style="background:#f8f9fa"><td style="padding:.4rem .6rem;border-bottom:1px solid #eee">Inter\u00e9s</td><td style="padding:.4rem .6rem;text-align:right">'+intFmt+'</td></tr>'+
       '<tr style="font-weight:700;background:#e8f4fd"><td style="padding:.5rem .6rem">Total Pagado</td><td style="padding:.5rem .6rem;text-align:right">'+totalFmt+'</td></tr>'+
       '</tbody></table>'+
       '<div style="background:#f0f9ff;border-left:4px solid #1a5276;padding:1rem;margin-bottom:1.5rem">'+
