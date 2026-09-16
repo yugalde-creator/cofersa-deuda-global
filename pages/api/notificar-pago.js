@@ -2,8 +2,22 @@ import nodemailer from 'nodemailer';
 import { readRows, SHEETS } from '../../lib/sheets.js';
 
 function parseMonto(v) {
+  if (typeof v === 'number') return v;
   if (!v && v !== 0) return 0;
-  return parseFloat(String(v).replace(/[^0-9.\-]/g, '')) || 0;
+  // Eliminar símbolos de moneda, %, espacios
+  let s = String(v).trim().replace(/[₡$%\s]/g, '');
+  if (!s || s === '-') return 0;
+  const neg = s.startsWith('-') ? -1 : 1;
+  s = s.replace(/^-/, '');
+  // Formato europeo con separador de miles en puntos y decimal en coma: 1.234.567,89
+  if (/^\d{1,3}(\.\d{3})+,\d+$/.test(s)) return neg * parseFloat(s.replace(/\./g, '').replace(',', '.'));
+  // Formato europeo solo miles con puntos: 1.234.567
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) return neg * parseFloat(s.replace(/\./g, ''));
+  // Formato US con miles en comas: 1,234,567 o 1,234,567.89
+  if (/^\d{1,3}(,\d{3})+(\..+)?$/.test(s)) return neg * parseFloat(s.replace(/,/g, ''));
+  // Decimal con coma sin separador de miles: 1234567,89
+  if (/^\d+,\d+$/.test(s)) return neg * parseFloat(s.replace(',', '.'));
+  return neg * (parseFloat(s) || 0);
 }
 
 function fmtDateGlosa(s) {
@@ -219,7 +233,14 @@ export default async function handler(req, res) {
     <div style="font-size:10px;font-weight:700;color:#888;letter-spacing:.6px;margin-bottom:6px">◆ GLOSA ERP — COPIAR Y PEGAR EN ASIENTO CONTABLE</div>
     <code style="font-family:monospace;font-size:13px;color:#1a5276;font-weight:600;word-break:break-all">${glosa}</code>
   </div>
-  <div style="font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:10px;text-align:center">
+  <!-- DIAGNÓSTICO -->
+  <div style="background:#fff9e6;border:1px solid #ffe082;border-radius:6px;padding:10px 14px;margin-top:8px;font-size:10px;color:#7a6000">
+    <div style="font-weight:700;margin-bottom:4px">🔍 Diagnóstico interno (eliminar cuando datos sean correctos)</div>
+    <div>Aprobado raw: ${linea.Aprobado || '—'} → parseado: ${montoAprobado.toLocaleString('es-CR')}</div>
+    <div>Cuotas prev. encontradas: ${pagosPrevios.length} | Capital previo total: ${fmtMonto(capitalPrevioTotal, moneda)}</div>
+    <div>Tasa raw: ${linea.Tasa || '—'} → tasaRaw: ${tasaRaw} → tasa normalizada: ${tasa}%</div>
+  </div>
+  <div style="font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:10px;text-align:center;margin-top:8px">
     COFERSA · ${linea.Banco} | ${linea.NumOp} · ${moneda} · ${fmtDateDisplay(fecha)}
     ${tcVal > 0 ? '· TC: '+fmtCRC(tcVal) : ''}
   </div>
@@ -246,7 +267,13 @@ export default async function handler(req, res) {
       emailSent,
       emailError,
       debug: {
+        aprobadoRaw: linea.Aprobado,
+        montoAprobado,
+        capitalPrevioTotal,
+        pagosPreviosCount: pagosPrevios.length,
         saldoAntes,
+        tasaRaw,
+        tasa,
         diasPeriodo,
         interesCalculado: Math.round(interesCalculado * 100) / 100,
         interesProg,
