@@ -37,6 +37,19 @@ function initials(name){
   if(!parts.length) return 'US';
   return parts.slice(0,2).map(w=>w[0].toUpperCase()).join('');
 }
+function parseCSV(text){
+  return (text||'').trim().split(/\r?\n/).map(line=>{
+    const row=[]; let cur='', inQ=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){inQ=!inQ;}
+      else if(ch===','&&!inQ){row.push(cur.trim());cur='';}
+      else{cur+=ch;}
+    }
+    row.push(cur.trim());
+    return row;
+  }).filter(r=>r.some(c=>c));
+}
 
 /* ================= DATOS EN VIVO (poblados desde el Google Sheet) ================= */
 let SYM = { USD: '$', CRC: '₡' };
@@ -720,7 +733,12 @@ function openNewLineScheduleModal(){
         <button class="btn" id="calcScheduleBtn">${ic('percent')} Calcular Plan de Pagos</button>
       </div>
       <div id="sectionBanco" style="margin-top:12px;display:none;">
-        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">Pega la tabla del banco (CSV: fecha,capital,interes — una cuota por línea)</label>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <button class="btn" id="bancoFileBtn" style="flex-shrink:0;">${ic('upload')} Subir PDF / Excel / CSV</button>
+          <input type="file" id="s_banco_file" accept=".pdf,.xlsx,.xls,.csv,.txt" style="display:none">
+          <span id="bancoFileStatus" style="font-size:12px;color:var(--text-muted);">o pegue el CSV abajo</span>
+        </div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">Tabla del banco (CSV: fecha,capital,interes — una cuota por línea)</label>
         <textarea id="s_banco_csv" rows="7" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;font-family:monospace;box-sizing:border-box;" placeholder="2026-08-20,39300,12401&#10;2026-09-20,39700,12001&#10;..."></textarea>
         <button class="btn" id="previewBancoBtn" style="margin-top:8px;">${ic('eye')} Previsualizar tabla</button>
       </div>
@@ -743,6 +761,46 @@ function openNewLineScheduleModal(){
   }
   document.getElementById('modeCalcBtn').addEventListener('click', ()=> setMode('calc'));
   document.getElementById('modeBancoBtn').addEventListener('click', ()=> setMode('banco'));
+
+  document.getElementById('bancoFileBtn').addEventListener('click', ()=>{
+    document.getElementById('s_banco_file').click();
+  });
+  document.getElementById('s_banco_file').addEventListener('change', async e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const status=document.getElementById('bancoFileStatus');
+    status.textContent='Procesando…';
+    try{
+      const ext=file.name.split('.').pop().toLowerCase();
+      if(ext==='csv'||ext==='txt'){
+        document.getElementById('s_banco_csv').value=await file.text();
+        status.textContent='✓ CSV cargado';
+      } else if(ext==='xlsx'||ext==='xls'){
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+        const wb=XLSX.read(new Uint8Array(await file.arrayBuffer()),{type:'array',raw:false});
+        const csv=excelRowsToCSV(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:''}));
+        if(!csv){toast('No se detectaron columnas fecha/capital/interés en el Excel.',true);status.textContent='Sin datos';return;}
+        document.getElementById('s_banco_csv').value=csv;
+        const n=csv.split('\n').length;
+        status.textContent=`✓ Excel: ${n} cuota(s)`;
+        toast(`Excel procesado: ${n} cuotas.`);
+      } else if(ext==='pdf'){
+        const csv=await parsePdfToCSV(file,t=>{ status.textContent=t; });
+        if(!csv){toast('No se encontraron filas de pagos en el PDF. Intente con CSV.',true);status.textContent='Sin datos';return;}
+        document.getElementById('s_banco_csv').value=csv;
+        const n=csv.split('\n').filter(Boolean).length;
+        status.textContent=`✓ PDF: ${n} cuota(s)`;
+        toast(`PDF procesado: ${n} cuotas encontradas.`);
+      } else {
+        toast('Use PDF, Excel (.xlsx/.xls) o CSV.',true);
+        status.textContent='';
+      }
+    } catch(err){
+      console.error('[FileUpload]',err);
+      toast('Error al procesar el archivo: '+err.message,true);
+      status.textContent='Error';
+    }
+    e.target.value='';
+  });
 
   document.getElementById('calcScheduleBtn').addEventListener('click', ()=>{
     const banco = document.getElementById('s_banco').value;
@@ -1652,6 +1710,87 @@ function exportCSV(rows, cols, filename){
   const a = document.createElement('a');
   a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
+}
+
+/* ================= FILE UPLOAD HELPERS ================= */
+function loadScript(src){
+  return new Promise((resolve,reject)=>{
+    if(document.querySelector(`script[src="${src}"]`)){resolve();return;}
+    const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=reject;document.head.appendChild(s);
+  });
+}
+function normalizeDate(s){
+  s=(s||'').trim().replace(/\./g,'/');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(m){let y=m[3];if(y.length===2)y='20'+y;return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;}
+  return null;
+}
+function parseAmountStr(s){
+  s=(s||'').replace(/[\u20a1$€\s]/g,'').trim();
+  if(!s||isNaN(s.replace(/[,.]/g,''))) return null;
+  if(/,\d{2}$/.test(s)) return parseFloat(s.replace(/\./g,'').replace(',','.'))||null;
+  return parseFloat(s.replace(/,/g,''))||null;
+}
+function excelRowsToCSV(rows){
+  let fechaCol=-1,capitalCol=-1,interesCol=-1;
+  for(let i=0;i<Math.min(6,rows.length);i++){
+    const r=rows[i].map(c=>(c||'').toString().toLowerCase().trim());
+    for(let j=0;j<r.length;j++){
+      if(/fecha|date|vencimiento/.test(r[j])&&fechaCol<0) fechaCol=j;
+      if(/capital|principal|amort/.test(r[j])&&capitalCol<0) capitalCol=j;
+      if(/inter[eé]s|interest/.test(r[j])&&interesCol<0) interesCol=j;
+    }
+    if(fechaCol>=0&&capitalCol>=0&&interesCol>=0) break;
+  }
+  const lines=[];
+  for(const row of rows){
+    const fI=fechaCol>=0?fechaCol:0, cI=capitalCol>=0?capitalCol:1, iI=interesCol>=0?interesCol:2;
+    const fecha=normalizeDate((row[fI]||'').toString().trim());
+    if(!fecha) continue;
+    const cap=parseAmountStr((row[cI]||'').toString());
+    const inte=parseAmountStr((row[iI]||'').toString());
+    if(!cap||cap<=0) continue;
+    lines.push(`${fecha},${cap},${inte||0}`);
+  }
+  return lines.join('\n');
+}
+async function parsePdfToCSV(file, onStatus){
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+  onStatus(`Leyendo ${pdf.numPages} página(s)…`);
+  const allLines=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const tc=await page.getTextContent();
+    const byY={};
+    for(const item of tc.items){
+      const y=Math.round(item.transform[5]);
+      if(!byY[y]) byY[y]=[];
+      byY[y].push({x:item.transform[4],s:item.str});
+    }
+    for(const y of Object.keys(byY).map(Number).sort((a,b)=>b-a)){
+      allLines.push(byY[y].sort((a,b)=>a.x-b.x).map(i=>i.s).join(' '));
+    }
+  }
+  const dateRe=/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{2}[\/\-]\d{2})/;
+  const result=[];
+  for(const line of allLines){
+    const dm=line.match(dateRe);
+    if(!dm) continue;
+    const fecha=normalizeDate(dm[1]);
+    if(!fecha) continue;
+    const nums=[];
+    for(const m of line.replace(dm[0],'').matchAll(/[\d.,']+/g)){
+      const v=parseAmountStr(m[0]);
+      if(v!==null&&v>=100) nums.push(v);
+    }
+    if(nums.length<2) continue;
+    result.push(`${fecha},${nums[0]},${nums[1]}`);
+  }
+  return result.join('\n');
 }
 
 /* ================= MODALS ================= */
