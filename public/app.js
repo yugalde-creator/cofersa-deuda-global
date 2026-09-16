@@ -1759,11 +1759,16 @@ function pendingCuotaOptionsHtml(lineaId){
 }
 function openNewPaymentModal(){
   if(!lines.length){ toast('No hay líneas activas para registrar un pago.', true); return; }
+  const banks = [...new Set(lines.map(l=>l.banco).filter(Boolean))].sort();
   const firstLine = lines[0];
   openModal(`
     <div class="modal-header"><div><h2>Registrar Pago</h2><div class="sub">Concilia un pago contra una cuota pendiente o regístralo manualmente</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
     <div class="modal-body">
       <div class="form-grid">
+        <div class="form-field full">
+          <label>Banco</label>
+          <select id="p_banco"><option value="">— Todos los bancos —</option>${banks.map(b=>`<option value="${b}">${b}</option>`).join('')}</select>
+        </div>
         <div class="form-field full">
           <label>Línea de Crédito</label>
           <select id="p_linea">${lines.map(l=>`<option value="${l.id}">${l.numOp||l.id} — ${l.banco}</option>`).join('')}</select>
@@ -1814,6 +1819,12 @@ function openNewPaymentModal(){
 
   let _cuotaCapital = 0, _cuotaInteres = 0, _cur = firstLine.moneda||'USD';
 
+  function refreshLineaOptions(){
+    const banco = document.getElementById('p_banco').value;
+    const filtered = banco ? lines.filter(l=>l.banco===banco) : lines;
+    document.getElementById('p_linea').innerHTML = filtered.map(l=>`<option value="${l.id}">${l.numOp||l.id} — ${l.banco}</option>`).join('');
+    updateSaldo(); refreshCuotaOptions(); applySelectedCuota();
+  }
   function refreshCuotaOptions(){
     const lineaId = document.getElementById('p_linea').value;
     document.getElementById('p_cuota').innerHTML = pendingCuotaOptionsHtml(lineaId);
@@ -1878,6 +1889,7 @@ function openNewPaymentModal(){
     document.getElementById('p_int_real').value=cuota.interes.toFixed(2);
     updateDiffs();
   }
+  document.getElementById('p_banco').addEventListener('change', refreshLineaOptions);
   document.getElementById('p_linea').addEventListener('change', ()=>{ updateSaldo(); refreshCuotaOptions(); applySelectedCuota(); });
   document.getElementById('p_cuota').addEventListener('change', applySelectedCuota);
   document.getElementById('p_cap_real').addEventListener('input', updateDiffs);
