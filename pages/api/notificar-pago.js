@@ -26,11 +26,11 @@ function fmtToday() {
 }
 
 function fmtCRC(n) {
-  if (!n && n !== 0) return '\u20a1 0,00';
+  if (!n && n !== 0) return '₡ 0,00';
   const abs = Math.abs(n);
   const parts = abs.toFixed(2).split('.');
   const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ');
-  return '\u20a1 ' + intPart + ',' + parts[1];
+  return '₡ ' + intPart + ',' + parts[1];
 }
 
 function fmtUSD(n) {
@@ -48,7 +48,7 @@ function fmtMontoGlosa(n, moneda) {
   } else {
     const parts = Math.abs(n).toFixed(2).split('.');
     const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ');
-    return '\u20a1' + intPart + ',' + parts[1];
+    return '₡' + intPart + ',' + parts[1];
   }
 }
 
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
     if (!linea) return res.status(404).json({error:'Linea no encontrada: '+lineaId});
 
     const pagosPrevios = pagos
-      .filter(p => p.ID_Linea === lineaId && (p.Estado === 'Pagado' || p.Estado === 'Cancelado') && p.Fecha < fecha)
+      .filter(p => p.ID_Linea === lineaId && (p.Estado === 'Pagado' || p.Estado === 'Cancelado' || p.Estado === 'Conciliado') && p.Fecha < fecha)
       .sort((a,b) => b.Fecha.localeCompare(a.Fecha));
     const fechaAnterior = pagosPrevios.length > 0 ? pagosPrevios[0].Fecha : linea.FechaInicio;
 
@@ -89,7 +89,9 @@ export default async function handler(req, res) {
     const capitalPrevioTotal = pagosPrevios.reduce((sum, p) => sum + parseMonto(p.Capital), 0);
     const saldoAntes = montoAprobado - capitalPrevioTotal;
 
-    const tasa = parseMonto(linea.Tasa);
+    // Normalizar tasa: la hoja puede guardarla como 7.75 (%) o 775 (puntos base)
+    const tasaRaw = parseMonto(linea.Tasa);
+    const tasa = tasaRaw > 50 ? tasaRaw / 100 : tasaRaw;
     const diasPeriodo = daysBetween(fechaAnterior, fecha);
     const interesCalculado = saldoAntes * (tasa / 100) * (diasPeriodo / 360);
 
@@ -112,7 +114,7 @@ export default async function handler(req, res) {
     const difInt  = intReal  - interesProg;
 
     function fmtDif(n) {
-      if (Math.abs(n) < 0.01) return '<span style="color:#27ae60">\u2014 igual \u2014</span>';
+      if (Math.abs(n) < 0.01) return '<span style="color:#27ae60">— igual —</span>';
       const sign = n > 0 ? '+' : '';
       return '<span style="color:'+(n<0?'#27ae60':'#e74c3c')+'">'+sign+fmtMonto(n, moneda)+'</span>';
     }
@@ -128,11 +130,11 @@ export default async function handler(req, res) {
         <div style="font-size:22px;font-weight:700;color:#1a5276">Comprobante de Pago</div>
         <div style="margin-top:4px">
           <span style="background:${estatusBg};color:#fff;padding:2px 10px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:.5px">${estadoLabel.toUpperCase()}</span>
-          <span style="color:#555;font-size:12px;margin-left:8px">\u2014 ${fmtDateDisplay(fecha)}</span>
+          <span style="color:#555;font-size:12px;margin-left:8px">— ${fmtDateDisplay(fecha)}</span>
         </div>
       </td>
       <td style="text-align:right;font-size:12px;color:#555;line-height:1.8">
-        <div><strong>Operaci\u00f3n:</strong> ${linea.Banco} | ${linea.NumOp}</div>
+        <div><strong>Operación:</strong> ${linea.Banco} | ${linea.NumOp}</div>
         <div><strong>Moneda:</strong> ${moneda}</div>
         <div><strong>Generado:</strong> ${fmtToday()}</div>
         ${tcVal > 0 ? '<div><strong>TC:</strong> '+fmtCRC(tcVal)+'</div>' : ''}
@@ -142,10 +144,10 @@ export default async function handler(req, res) {
   <table style="width:100%;margin-bottom:20px;vertical-align:top">
     <tr>
       <td style="width:48%;vertical-align:top;padding-right:12px">
-        <div style="font-size:10px;font-weight:700;color:#1a5276;letter-spacing:.8px;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:4px">\u25c6 DATOS DE LA OPERACI\u00d3N</div>
+        <div style="font-size:10px;font-weight:700;color:#1a5276;letter-spacing:.8px;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:4px">◆ DATOS DE LA OPERACIÓN</div>
         <table style="width:100%;font-size:12px;border-collapse:collapse">
           <tr><td style="padding:3px 0;color:#666">Banco</td><td style="text-align:right;font-weight:600">${linea.Banco}</td></tr>
-          <tr><td style="padding:3px 0;color:#666">N\u00b0 Operaci\u00f3n</td><td style="text-align:right;font-weight:600">${linea.NumOp}</td></tr>
+          <tr><td style="padding:3px 0;color:#666">N° Operación</td><td style="text-align:right;font-weight:600">${linea.NumOp}</td></tr>
           <tr><td style="padding:3px 0;color:#666">Monto Original</td><td style="text-align:right">${fmtMonto(montoAprobado, moneda)}</td></tr>
           <tr><td style="padding:3px 0;color:#666">Tasa Anual</td><td style="text-align:right">${tasa.toFixed(2)}%</td></tr>
           <tr><td style="padding:3px 0;color:#666">Plazo</td><td style="text-align:right">${linea.Plazo || '-'}</td></tr>
@@ -155,27 +157,27 @@ export default async function handler(req, res) {
       </td>
       <td style="width:4%"></td>
       <td style="width:48%;vertical-align:top">
-        <div style="font-size:10px;font-weight:700;color:#1a5276;letter-spacing:.8px;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:4px">\u25c6 DETALLE DEL PAGO</div>
+        <div style="font-size:10px;font-weight:700;color:#1a5276;letter-spacing:.8px;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:4px">◆ DETALLE DEL PAGO</div>
         <table style="width:100%;font-size:12px;border-collapse:collapse">
           <tr><td style="padding:3px 0;color:#666">Fecha de pago</td><td style="text-align:right;font-weight:600">${fmtDateDisplay(fecha)}</td></tr>
           <tr><td style="padding:3px 0;color:#666">Fecha pago anterior</td><td style="text-align:right">${fmtDateDisplay(fechaAnterior)}</td></tr>
-          <tr><td style="padding:3px 0;color:#666">D\u00edas del per\u00edodo</td><td style="text-align:right;font-weight:600">${diasPeriodo} d\u00edas</td></tr>
+          <tr><td style="padding:3px 0;color:#666">Días del período</td><td style="text-align:right;font-weight:600">${diasPeriodo} días</td></tr>
           <tr><td style="padding:3px 0;color:#666">Capital</td><td style="text-align:right">${fmtMonto(capReal, moneda)}</td></tr>
-          <tr><td style="padding:3px 0;color:#666">Inter\u00e9s programado</td><td style="text-align:right">${fmtMonto(interesProg, moneda)}</td></tr>
+          <tr><td style="padding:3px 0;color:#666">Interés programado</td><td style="text-align:right">${fmtMonto(interesProg, moneda)}</td></tr>
           <tr style="border-top:1px solid #eee"><td style="padding:5px 0;font-weight:600">Total pagado al banco</td><td style="text-align:right;font-weight:700">${fmtMonto(totalReal, moneda)}</td></tr>
           ${moneda !== 'USD' && tcVal > 0 ? `
           <tr><td style="padding:3px 0;color:#666;font-size:11px">Capital USD equiv.</td><td style="text-align:right;font-size:11px">${fmtUSD(capUSD)}</td></tr>
           <tr><td style="padding:3px 0;color:#666;font-size:11px">Total USD equiv.</td><td style="text-align:right;font-size:11px">${fmtUSD(totalUSD)}</td></tr>
           ` : ''}
-          <tr><td style="padding:3px 0;color:#666;font-size:11px">KEY OPERACI\u00d3N</td><td style="text-align:right;font-size:10px;font-weight:700;letter-spacing:.5px">${linea.Banco.toUpperCase()}|${linea.NumOp}</td></tr>
+          <tr><td style="padding:3px 0;color:#666;font-size:11px">KEY OPERACIÓN</td><td style="text-align:right;font-size:10px;font-weight:700;letter-spacing:.5px">${linea.Banco.toUpperCase()}|${linea.NumOp}</td></tr>
         </table>
       </td>
     </tr>
   </table>
   <div style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:6px;padding:14px;margin-bottom:20px">
-    <div style="font-size:11px;font-weight:700;color:#1a5276;margin-bottom:6px">\u24d8 C\u00c1LCULO DE INTER\u00c9S \u2014 VERIFICACI\u00d3N</div>
-    <div style="font-size:10px;color:#888;margin-bottom:4px">F\u00f3rmula: Inter\u00e9s = Saldo \u00d7 (Tasa \u00f7 100) \u00d7 (D\u00edas \u00f7 360)</div>
-    <div style="font-size:10px;color:#888;margin-bottom:10px">Tasa: ${tasa.toFixed(4)}% &nbsp;Base: 360 d\u00edas &nbsp;Valores: ${fmtMonto(saldoAntes,moneda)} \u00d7 (${tasa.toFixed(4)}% \u00f7 100) \u00d7 (${diasPeriodo} \u00f7 360)</div>
+    <div style="font-size:11px;font-weight:700;color:#1a5276;margin-bottom:6px">ⓘ CÁLCULO DE INTERÉS — VERIFICACIÓN</div>
+    <div style="font-size:10px;color:#888;margin-bottom:4px">Fórmula: Interés = Saldo × (Tasa ÷ 100) × (Días ÷ 360)</div>
+    <div style="font-size:10px;color:#888;margin-bottom:10px">Tasa: ${tasa.toFixed(4)}% &nbsp;Base: 360 días &nbsp;Valores: ${fmtMonto(saldoAntes,moneda)} × (${tasa.toFixed(4)}% ÷ 100) × (${diasPeriodo} ÷ 360)</div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead>
         <tr style="background:#e8ecf0;font-size:10px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.4px">
@@ -187,26 +189,26 @@ export default async function handler(req, res) {
       </thead>
       <tbody>
         <tr style="border-bottom:1px solid #e0e0e0">
-          <td style="padding:6px 8px;color:#555">Inter\u00e9s calculado (sistema)</td>
+          <td style="padding:6px 8px;color:#555">Interés calculado (sistema)</td>
           <td style="padding:6px 8px;text-align:right;font-weight:600">${fmtMonto(interesCalculado, moneda)}</td>
-          <td style="padding:6px 8px;text-align:right;color:#888">\u2014</td>
-          <td style="padding:6px 8px;text-align:right;color:#888">\u2014</td>
+          <td style="padding:6px 8px;text-align:right;color:#888">—</td>
+          <td style="padding:6px 8px;text-align:right;color:#888">—</td>
         </tr>
         <tr style="border-bottom:1px solid #e0e0e0">
-          <td style="padding:6px 8px;color:#555">Inter\u00e9s programado (banco)</td>
-          <td style="padding:6px 8px;text-align:right;color:#888">\u2014</td>
+          <td style="padding:6px 8px;color:#555">Interés programado (banco)</td>
+          <td style="padding:6px 8px;text-align:right;color:#888">—</td>
           <td style="padding:6px 8px;text-align:right;font-weight:600">${fmtMonto(interesProg, moneda)}</td>
-          <td style="padding:6px 8px;text-align:right;color:#888">\u2014</td>
+          <td style="padding:6px 8px;text-align:right;color:#888">—</td>
         </tr>
         <tr style="background:#fff8e1">
-          <td style="padding:6px 8px;font-weight:700">Inter\u00e9s real cobrado</td>
+          <td style="padding:6px 8px;font-weight:700">Interés real cobrado</td>
           <td style="padding:6px 8px;text-align:right;font-size:10px;color:#888">Sistema: ${fmtMonto(interesCalculado, moneda)}</td>
           <td style="padding:6px 8px;text-align:right;font-size:10px;color:#888">Prog: ${fmtMonto(interesProg, moneda)}</td>
           <td style="padding:6px 8px;text-align:right;font-weight:700">${fmtMonto(intReal, moneda)}</td>
         </tr>
         ${Math.abs(difInt) > 1 ? `
         <tr style="background:#ffeaea">
-          <td style="padding:4px 8px;font-size:11px;color:#e74c3c">\u26a0 Diferencia inter\u00e9s (real vs programado)</td>
+          <td style="padding:4px 8px;font-size:11px;color:#e74c3c">⚠ Diferencia interés (real vs programado)</td>
           <td></td><td></td>
           <td style="padding:4px 8px;text-align:right;font-size:11px">${fmtDif(difInt)}</td>
         </tr>` : ''}
@@ -214,12 +216,12 @@ export default async function handler(req, res) {
     </table>
   </div>
   <div style="background:#f0f9ff;border-left:4px solid #1a5276;padding:14px;margin-bottom:20px;border-radius:0 6px 6px 0">
-    <div style="font-size:10px;font-weight:700;color:#888;letter-spacing:.6px;margin-bottom:6px">\u25c6 GLOSA ERP \u2014 COPIAR Y PEGAR EN ASIENTO CONTABLE</div>
+    <div style="font-size:10px;font-weight:700;color:#888;letter-spacing:.6px;margin-bottom:6px">◆ GLOSA ERP — COPIAR Y PEGAR EN ASIENTO CONTABLE</div>
     <code style="font-family:monospace;font-size:13px;color:#1a5276;font-weight:600;word-break:break-all">${glosa}</code>
   </div>
   <div style="font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:10px;text-align:center">
-    COFERSA \u00b7 ${linea.Banco} | ${linea.NumOp} \u00b7 ${moneda} \u00b7 ${fmtDateDisplay(fecha)}
-    ${tcVal > 0 ? '\u00b7 TC: '+fmtCRC(tcVal) : ''}
+    COFERSA · ${linea.Banco} | ${linea.NumOp} · ${moneda} · ${fmtDateDisplay(fecha)}
+    ${tcVal > 0 ? '· TC: '+fmtCRC(tcVal) : ''}
   </div>
 </div>`;
 
@@ -232,7 +234,7 @@ export default async function handler(req, res) {
       await transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: 'yugalde@cofersa.cr',
-        subject: `Comprobante ${estadoLabel}: ${linea.Banco} ${linea.NumOp} \u2014 ${fmtDateDisplay(fecha)}`,
+        subject: `Comprobante ${estadoLabel}: ${linea.Banco} ${linea.NumOp} — ${fmtDateDisplay(fecha)}`,
         html,
       });
       emailSent = true;
