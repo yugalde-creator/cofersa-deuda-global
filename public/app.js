@@ -1761,20 +1761,45 @@ async function parsePdfToCSV(file, onStatus){
   const buf=await file.arrayBuffer();
   const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
   onStatus(`Leyendo ${pdf.numPages} página(s)…`);
-  const allLines=[];
+
+  // Collect all text items across all pages
+  const allItems=[];
   for(let p=1;p<=pdf.numPages;p++){
     const page=await pdf.getPage(p);
     const tc=await page.getTextContent();
-    const byY={};
-    for(const item of tc.items){
-      const y=Math.round(item.transform[5]);
-      if(!byY[y]) byY[y]=[];
-      byY[y].push({x:item.transform[4],s:item.str});
-    }
-    for(const y of Object.keys(byY).map(Number).sort((a,b)=>b-a)){
-      allLines.push(byY[y].sort((a,b)=>a.x-b.x).map(i=>i.s).join(' '));
-    }
+    for(const item of tc.items) allItems.push({y:item.transform[5], x:item.transform[4], s:item.str});
   }
+
+  // Group items into visual lines with 4px tolerance
+  allItems.sort((a,b)=>b.y-a.y);
+  const lineGroups=[];
+  for(const item of allItems){
+    const last=lineGroups[lineGroups.length-1];
+    if(last && Math.abs(item.y-last.y)<4){ last.items.push(item); last.y=(last.y+item.y)/2; }
+    else lineGroups.push({y:item.y, items:[item]});
+  }
+  const allLines=lineGroups.map(g=>g.items.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' '));
+
+  // Parse amounts: handles space/dot as thousands sep, comma or dot as decimal
+  // e.g. "39 300,00"  "39.300,00"  "39300.00"  "1,234.56"
+  function parsePDFNum(s){
+    s=(s||'').replace(/[₡$€\s]/g,'').trim();
+    if(!s) return null;
+    if(/,\d{1,2}$/.test(s)) return parseFloat(s.replace(/\./g,'').replace(',','.'))||null;
+    if(/\.\d{1,2}$/.test(s)) return parseFloat(s.replace(/,/g,''))||null;
+    return parseFloat(s.replace(/[,.]/g,''))||null;
+  }
+
+  // Extract numeric tokens, collapsing "39 300 , 00" into "39300,00"
+  function extractNums(str){
+    const nums=[];
+    for(const m of str.matchAll(/\d[\d\s]*(?:[.,]\d[\d\s]*)*/g)){
+      const v=parsePDFNum(m[0].replace(/\s+/g,''));
+      if(v!==null&&v>0) nums.push(v);
+    }
+    return nums;
+  }
+
   const dateRe=/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{2}[\/\-]\d{2})/;
   const result=[];
   for(const line of allLines){
@@ -1782,15 +1807,14 @@ async function parsePdfToCSV(file, onStatus){
     if(!dm) continue;
     const fecha=normalizeDate(dm[1]);
     if(!fecha) continue;
-    const nums=[];
-    for(const m of line.replace(dm[0],'').matchAll(/[\d.,']+/g)){
-      const v=parseAmountStr(m[0]);
-      if(v!==null&&v>=100) nums.push(v);
-    }
+    const nums=extractNums(line.replace(dm[0],''));
     if(nums.length<2) continue;
     result.push(`${fecha},${nums[0]},${nums[1]}`);
   }
+  if(result.length===0) console.warn('[PDF] No rows found. Lines sample:', allLines.filter(l=>l.trim()).slice(0,20));
   return result.join('\n');
+}
+
 }
 
 /* ================= MODALS ================= */
