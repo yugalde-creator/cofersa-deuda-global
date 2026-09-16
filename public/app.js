@@ -1762,26 +1762,44 @@ async function parsePdfToCSV(file, onStatus){
   const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
   onStatus(`Leyendo ${pdf.numPages} página(s)…`);
 
-  // Collect all text items across all pages
+  let totalItems=0;
   const allItems=[];
   for(let p=1;p<=pdf.numPages;p++){
     const page=await pdf.getPage(p);
     const tc=await page.getTextContent();
+    totalItems+=tc.items.length;
     for(const item of tc.items) allItems.push({y:item.transform[5], x:item.transform[4], s:item.str});
   }
 
-  // Group items into visual lines with 4px tolerance
-  allItems.sort((a,b)=>b.y-a.y);
-  const lineGroups=[];
-  for(const item of allItems){
-    const last=lineGroups[lineGroups.length-1];
-    if(last && Math.abs(item.y-last.y)<4){ last.items.push(item); last.y=(last.y+item.y)/2; }
-    else lineGroups.push({y:item.y, items:[item]});
+  let allLines=[];
+  if(totalItems===0){
+    onStatus('PDF de imagen detectado. Cargando OCR…');
+    await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js');
+    const worker=await Tesseract.createWorker('spa+eng');
+    const fullText=[];
+    for(let p=1;p<=pdf.numPages;p++){
+      onStatus(`OCR página ${p} de ${pdf.numPages}…`);
+      const page=await pdf.getPage(p);
+      const vp=page.getViewport({scale:2.5});
+      const canvas=document.createElement('canvas');
+      canvas.width=vp.width; canvas.height=vp.height;
+      await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+      const {data:{text}}=await worker.recognize(canvas);
+      fullText.push(text);
+    }
+    await worker.terminate();
+    allLines=fullText.join('\n').split('\n');
+  } else {
+    allItems.sort((a,b)=>b.y-a.y);
+    const lineGroups=[];
+    for(const item of allItems){
+      const last=lineGroups[lineGroups.length-1];
+      if(last&&Math.abs(item.y-last.y)<4){last.items.push(item);last.y=(last.y+item.y)/2;}
+      else lineGroups.push({y:item.y,items:[item]});
+    }
+    allLines=lineGroups.map(g=>g.items.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' '));
   }
-  const allLines=lineGroups.map(g=>g.items.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' '));
 
-  // Parse amounts: handles space/dot as thousands sep, comma or dot as decimal
-  // e.g. "39 300,00"  "39.300,00"  "39300.00"  "1,234.56"
   function parsePDFNum(s){
     s=(s||'').replace(/[₡$€\s]/g,'').trim();
     if(!s) return null;
@@ -1789,8 +1807,6 @@ async function parsePdfToCSV(file, onStatus){
     if(/\.\d{1,2}$/.test(s)) return parseFloat(s.replace(/,/g,''))||null;
     return parseFloat(s.replace(/[,.]/g,''))||null;
   }
-
-  // Extract numeric tokens, collapsing "39 300 , 00" into "39300,00"
   function extractNums(str){
     const nums=[];
     for(const m of str.matchAll(/\d[\d\s]*(?:[.,]\d[\d\s]*)*/g)){
@@ -1800,6 +1816,31 @@ async function parsePdfToCSV(file, onStatus){
     return nums;
   }
 
+  // BCT bank format: two rows per date — P110 (interest) + A125 (capital)
+  const bctDateRe=/(?:Lun|Mar|Mi[eé]|Jue|Vie|S[aá]b|Dom)\.?\s*(\d{1,2}[.\/\-]\d{1,2}[.\/\-]\d{2,4})/i;
+  const bctRows={},bctOrder=[];
+  let isBCT=false;
+  for(const line of allLines){
+    if(/D001|Desembolso/i.test(line)) continue;
+    const dm=line.match(bctDateRe);
+    if(!dm) continue;
+    const fecha=normalizeDate(dm[1]);
+    if(!fecha) continue;
+    const isCapital=/A125|Amortizaci[oó]n/i.test(line);
+    const isInteres=/P110|Intereses/i.test(line);
+    if(!isCapital&&!isInteres) continue;
+    isBCT=true;
+    if(!bctRows[fecha]){bctRows[fecha]={capital:0,interes:0};bctOrder.push(fecha);}
+    const nums=extractNums(line);
+    const val=nums.length>0?nums[0]:0;
+    if(isCapital) bctRows[fecha].capital=val;
+    else bctRows[fecha].interes=val;
+  }
+  if(isBCT&&bctOrder.length>0){
+    return bctOrder.map(f=>`${f},${bctRows[f].capital},${bctRows[f].interes}`).join('\n');
+  }
+
+  // Generic fallback
   const dateRe=/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{2}[\/\-]\d{2})/;
   const result=[];
   for(const line of allLines){
@@ -1811,7 +1852,7 @@ async function parsePdfToCSV(file, onStatus){
     if(nums.length<2) continue;
     result.push(`${fecha},${nums[0]},${nums[1]}`);
   }
-  if(result.length===0) console.warn('[PDF] No rows found. Lines sample:', allLines.filter(l=>l.trim()).slice(0,20));
+  if(result.length===0) console.warn('[PDF] No rows found. Lines sample:',allLines.filter(l=>l.trim()).slice(0,20));
   return result.join('\n');
 }
 
