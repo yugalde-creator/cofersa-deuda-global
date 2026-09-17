@@ -1856,8 +1856,6 @@ async function parsePdfToCSV(file, onStatus){
   return result.join('\n');
 }
 
-}
-
 /* ================= MODALS ================= */
 function openModal(innerHtml){
   const root = document.getElementById('modal-root');
