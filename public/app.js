@@ -426,13 +426,13 @@ function upcomingEvents(){
     const line = lines.find(l=>l.id===lid);
     if(!line) return;
     plan.filter(p=>p.estado==='Pendiente').forEach(p=>{
-      events.push({ tipo:'Cuota', linea:lid, banco:line.banco, fecha:p.fecha, montoUSD: toUSD(p.capital+p.interes, line.moneda), dias: daysUntil(p.fecha) });
+      events.push({ tipo:'Cuota', linea:line.numOp||lid, banco:line.banco, fecha:p.fecha, montoUSD: toUSD(p.capital+p.interes, line.moneda), dias: daysUntil(p.fecha) });
     });
   });
   lines.forEach(l=>{
     const d = daysUntil(l.vencimiento);
     if(d!==null && d>=0 && d<=180){
-      events.push({ tipo:'Vencimiento de Línea', linea:l.id, banco:l.banco, fecha:l.vencimiento, montoUSD: toUSD(lineaSaldoActual(l),l.moneda), dias:d });
+      events.push({ tipo:'Vencimiento de Línea', linea:l.numOp||l.id, banco:l.banco, fecha:l.vencimiento, montoUSD: toUSD(lineaSaldoActual(l),l.moneda), dias:d });
     }
   });
   return events.sort((a,b)=>a.dias-b.dias);
@@ -531,7 +531,7 @@ function indicadoresFinancierosHtml(){
     ['Tasa promedio ponderada', k.tasaPonderada.toFixed(2)+'%'],
     ['% Uso total de líneas', usoTotal.toFixed(1)+'%'],
     ['Tipo de cambio', '₡'+FX.CRC.toFixed(2)+' = $1.00'],
-    ['Próximo vencimiento', k.prox ? (daysUntil(lineaProximoPago(k.prox))+' días · '+k.prox.id) : 'Sin pagos programados'],
+    ['Próximo vencimiento', k.prox ? (daysUntil(lineaProximoPago(k.prox))+' días · '+(k.prox.numOp||k.prox.id)) : 'Sin pagos programados'],
   ];
   return `
     <div class="table-card">
@@ -627,12 +627,12 @@ function linesHtml(){
     </div>`;
 }
 function lineRowHtml(l){
-  if(l._cancelada){ return `<tr data-id="${l.id}" data-cancelada="1"><td><b>${l.numOp||l.id}</b><div class="text-muted" style="font-size:10.5px;">${l.id}</div></td><td>${l.banco}</td><td>${l.tipo}</td><td><span class="badge badge-gray">${l.moneda}</span></td><td class="text-right mono">${fmtNative(l.aprobado,l.moneda)}</td><td class="text-right mono">${fmtNative(0,l.moneda)}</td><td><span class="progress-bar-track"><span class="progress-bar-fill" style="width:100%"></span></span><span class="text-muted">100%</span></td><td class="text-right mono">${l.tasa ? l.tasa.toFixed(2) : '0'}%</td><td>${l.vencimiento}</td><td><span class="badge badge-gray">Cancelada</span></td></tr>`; }
+  if(l._cancelada){ return `<tr data-id="${l.id}" data-cancelada="1"><td><b>${l.numOp||l.id}</b></td><td>${l.banco}</td><td>${l.tipo}</td><td><span class="badge badge-gray">${l.moneda}</span></td><td class="text-right mono">${fmtNative(l.aprobado,l.moneda)}</td><td class="text-right mono">${fmtNative(0,l.moneda)}</td><td><span class="progress-bar-track"><span class="progress-bar-fill" style="width:100%"></span></span><span class="text-muted">100%</span></td><td class="text-right mono">${l.tasa ? l.tasa.toFixed(2) : '0'}%</td><td>${l.vencimiento}</td><td><span class="badge badge-gray">Cancelada</span></td></tr>`; }
   const est = estadoLinea(l);
   const saldo = lineaSaldoActual(l);
   const util = l.aprobado ? Math.round((saldo/l.aprobado)*100) : 0;
   return `<tr data-id="${l.id}">
-    <td><b>${l.numOp||l.id}</b><div class="text-muted" style="font-size:10.5px;">${l.id}</div></td>
+    <td><b>${l.numOp||l.id}</b></td>
     <td>${l.banco}</td>
     <td>${l.tipo}</td>
     <td><span class="badge badge-gray">${l.moneda}</span></td>
@@ -1027,7 +1027,7 @@ function calendarioHtml(){
       <div class="panel-header-dark">${ic('clock')}<span>${state.calSelectedDate ? 'Eventos del '+state.calSelectedDate : 'Selecciona un día para ver el detalle'}</span></div>
       <div class="table-scroll" style="max-height:380px;">
         <table><thead><tr><th>Origen</th><th>Referencia</th><th>Banco</th><th class="text-right">Amortización</th><th class="text-right">Interés</th><th class="text-right">Total</th><th>Estado</th></tr></thead>
-        <tbody>${selected.map(e=>`<tr><td>${e.origen}</td><td><b>${e.numOp||e.ref}</b><div class="text-muted" style="font-size:10px;">${e.ref}</div></td><td>${e.banco}</td><td class="text-right mono">${e.capital>0?fmtNative(e.capital,e.moneda):'—'}</td><td class="text-right mono">${e.interes>0?fmtNative(e.interes,e.moneda):'—'}</td><td class="text-right mono"><b>${fmtNative(e.capital+e.interes+e.extra,e.moneda)}</b></td><td><span class="badge ${e.estado==='Vencimiento'?'badge-red':'badge-amber'}">${e.estado}</span></td></tr>`).join('') || '<tr><td colspan="7"><div class="empty-state">Sin eventos este día.</div></td></tr>'}</tbody></table>
+        <tbody>${selected.map(e=>`<tr><td>${e.origen}</td><td><b>${e.numOp||e.ref}</b></td><td>${e.banco}</td><td class="text-right mono">${e.capital>0?fmtNative(e.capital,e.moneda):'—'}</td><td class="text-right mono">${e.interes>0?fmtNative(e.interes,e.moneda):'—'}</td><td class="text-right mono"><b>${fmtNative(e.capital+e.interes+e.extra,e.moneda)}</b></td><td><span class="badge ${e.estado==='Vencimiento'?'badge-red':'badge-amber'}">${e.estado}</span></td></tr>`).join('') || '<tr><td colspan="7"><div class="empty-state">Sin eventos este día.</div></td></tr>'}</tbody></table>
       </div>
     </div>`;
 }
@@ -1164,7 +1164,7 @@ function leasingEstado(l){
 function leasingRowHtml(l){
   const saldo = leasingSaldoActual(l);
     const badge = leasingEstado(l);
-  return `<tr data-id="${l.id}"><td><b>${l.id}</b></td><td>${l.banco}</td><td class="mono">${l.numOp}</td><td><span class="badge badge-gray">${l.moneda}</span></td><td class="text-right mono">${fmtNative(l.monto,l.moneda)}</td><td class="text-right mono">${fmtNative(saldo,l.moneda)}</td><td class="text-right mono">${l.tasa.toFixed(2)}%</td><td>${l.vencimiento}</td><td><span class="badge ${badge.cls}">${badge.label}</span></td></tr>`;
+  return `<tr data-id="${l.id}"><td><b>${l.numOp||l.id}</b></td><td>${l.banco}</td><td><span class="badge badge-gray">${l.moneda}</span></td><td class="text-right mono">${fmtNative(l.monto,l.moneda)}</td><td class="text-right mono">${fmtNative(saldo,l.moneda)}</td><td class="text-right mono">${l.tasa.toFixed(2)}%</td><td>${l.vencimiento}</td><td><span class="badge ${badge.cls}">${badge.label}</span></td></tr>`;
 }
 function leasingHtml(){
   const ro=isReadOnly();
@@ -1180,8 +1180,8 @@ function leasingHtml(){
         <button class="btn btn-primary" id="newLeasingBtn" ${ro?'disabled title="Requiere rol Administrador"':''}>${ic('plus')} Nuevo Contrato</button>
       </div>
       <div class="table-scroll" style="max-height:calc(100vh - 260px);">
-        <table><thead><tr><th>ID</th><th>Banco</th><th>N° Operación</th><th>Moneda</th><th class="text-right">Monto Original</th><th class="text-right">Saldo Actual</th><th class="text-right">Tasa</th><th>Vencimiento</th><th>Estado</th></tr></thead>
-        <tbody id="leasingBody">${rows.map(leasingRowHtml).join('') || '<tr><td colspan="9"><div class="empty-state">Sin contratos de leasing. Impórtalos o crea uno nuevo.</div></td></tr>'}</tbody></table>
+        <table><thead><tr><th>N° Operación</th><th>Banco</th><th>Moneda</th><th class="text-right">Monto Original</th><th class="text-right">Saldo Actual</th><th class="text-right">Tasa</th><th>Vencimiento</th><th>Estado</th></tr></thead>
+        <tbody id="leasingBody">${rows.map(leasingRowHtml).join('') || '<tr><td colspan="8"><div class="empty-state">Sin contratos de leasing. Impórtalos o crea uno nuevo.</div></td></tr>'}</tbody></table>
       </div>
     </div>`;
 }
@@ -1301,8 +1301,8 @@ function historicoHtml(){
   let body='';
   if(state.historicoTab==='canceladas'){
     body = `<div class="table-scroll" style="max-height:calc(100vh - 320px);">
-      <table><thead><tr><th>ID</th><th>Banco</th><th>N° Operación</th><th>Moneda</th><th class="text-right">Monto</th><th class="text-right">Tasa</th><th>Desembolso</th><th>Vencimiento</th></tr></thead>
-      <tbody>${lineasCanceladas.map(l=>`<tr><td><b>${l.id}</b></td><td>${l.banco}</td><td class="mono">${l.numOp}</td><td>${l.moneda}</td><td class="text-right mono">${fmtNative(l.monto,l.moneda)}</td><td class="text-right mono">${l.tasa.toFixed(2)}%</td><td>${l.inicio}</td><td>${l.vencimiento}</td></tr>`).join('') || '<tr><td colspan="8"><div class="empty-state">Sin líneas canceladas registradas.</div></td></tr>'}</tbody></table>
+      <table><thead><tr><th>N° Operación</th><th>Banco</th><th>Moneda</th><th class="text-right">Monto</th><th class="text-right">Tasa</th><th>Desembolso</th><th>Vencimiento</th></tr></thead>
+      <tbody>${lineasCanceladas.map(l=>`<tr><td class="mono"><b>${l.numOp||l.id}</b></td><td>${l.banco}</td><td>${l.moneda}</td><td class="text-right mono">${fmtNative(l.monto,l.moneda)}</td><td class="text-right mono">${l.tasa.toFixed(2)}%</td><td>${l.inicio}</td><td>${l.vencimiento}</td></tr>`).join('') || '<tr><td colspan="7"><div class="empty-state">Sin líneas canceladas registradas.</div></td></tr>'}</tbody></table>
     </div>`;
   } else {
     body = `<div class="table-scroll" style="max-height:calc(100vh - 320px);">
@@ -1583,8 +1583,8 @@ function centroDatosHtml(){
     <div class="table-card">
       <div class="table-toolbar"><div class="tb-search">${ic('search')}<input id="datosSearchInput" placeholder="Buscar en todos los datos maestros (banco, N° operación, ID)..." value="${state.datosSearch}"></div></div>
       <div class="table-scroll" style="max-height:calc(100vh - 380px);">
-        <table><thead><tr><th>Tipo</th><th>ID</th><th>Banco</th><th>N° Operación</th><th class="text-right">Monto</th><th>Estado</th></tr></thead>
-        <tbody>${results.map(r=>`<tr><td><span class="badge badge-blue">${r.tipo}</span></td><td><b>${r.id}</b></td><td>${r.banco}</td><td class="mono">${r.numOp||'—'}</td><td class="text-right mono">${r.monto}</td><td>${r.estado}</td></tr>`).join('') || '<tr><td colspan="6"><div class="empty-state">Sin resultados.</div></td></tr>'}</tbody></table>
+        <table><thead><tr><th>Tipo</th><th>N° Operación</th><th>Banco</th><th class="text-right">Monto</th><th>Estado</th></tr></thead>
+        <tbody>${results.map(r=>`<tr><td><span class="badge badge-blue">${r.tipo}</span></td><td class="mono"><b>${r.numOp||r.id}</b></td><td>${r.banco}</td><td class="text-right mono">${r.monto}</td><td>${r.estado}</td></tr>`).join('') || '<tr><td colspan="5"><div class="empty-state">Sin resultados.</div></td></tr>'}</tbody></table>
       </div>
     </div>`;
 }
@@ -1877,7 +1877,7 @@ function openLineDetailModal(id){
   const plan = paymentPlans[l.id]||[];
   const puedeArchivar = saldo<=0 && plan.length>0;
   openModal(`
-    <div class="modal-header"><div><h2>${l.numOp||l.id} — ${l.banco}</h2><div class="sub">${l.tipo} · <span style="font-size:12px;opacity:.7;">${l.id}</span></div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="modal-header"><div><h2>${l.numOp||l.id} — ${l.banco}</h2><div class="sub">${l.tipo} · </div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
     <div class="modal-body">
       <div style="margin-bottom:12px;"><span class="badge ${est.cls}">${est.label}</span></div>
       <div class="detail-row"><span class="k">Moneda</span><span class="v">${l.moneda}</span></div>
@@ -1931,7 +1931,7 @@ function openEditUserModal(targetEmail){
 function openEditLineModal(lineaId){
   const l = lines.find(x=>x.id===lineaId); if(!l) return;
   openModal(`
-    <div class="modal-header"><div><h2>Editar ${l.numOp||l.id}</h2><div class="sub">Modifica los campos de esta operación activa · <span style="font-size:12px;opacity:.7;">${l.id}</span></div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="modal-header"><div><h2>Editar ${l.numOp||l.id}</h2><div class="sub">Modifica los campos de esta operación activa · </div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
     <div class="modal-body">
       <div class="form-grid">
         <div class="form-field"><label>Banco</label><input id="el_banco" value="${l.banco}"></div>
