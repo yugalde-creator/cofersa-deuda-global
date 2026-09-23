@@ -130,6 +130,7 @@ let state = {
   proyeccionFiltro: '12meses',
   lineEstadoFilter: '', pagoEstadoFilter: '', histEstadoFilter: '', leasingEstadoFilter: '',
   monedaFilter: '', tipoFilter: '',
+  grupoEmpresa: 'TODAS',
 };
 
 function toUSD(amount, cur){ return cur==='USD' ? amount : amount / FX[cur]; }
@@ -269,6 +270,8 @@ function renderShell(){
         <div class="nav-group-label">Control</div>
         <div class="nav-item ${state.activeModule==='audit'?'active':''}" data-mod="audit">${ic('audit')}<span class="nav-label">Seguridad y Auditoría</span></div>
       <div class="nav-item ${state.activeModule==='devhub'?'active':''}" data-mod="devhub">${ic('database')}<span class="nav-label">Hub de Desarrollo</span></div>
+        <div class="nav-group-label">Grupo</div>
+        <div class="nav-item ${state.activeModule==='grupo'?'active':''}" data-mod="grupo">${ic('bank')}<span class="nav-label">Deuda Grupo</span></div>
       </nav>
       <div class="sidebar-footer">
         <button class="collapse-btn" id="collapseBtn">${ic(state.sidebarCollapsed?'chevronRight':'chevronLeft')}<span class="nav-label">Colapsar</span></button>
@@ -370,6 +373,7 @@ function renderContent(){
   else if(state.activeModule==='ops') c.innerHTML = opsHtml();
   else if(state.activeModule==='historico') c.innerHTML = historicoHtml();
   else if(state.activeModule==='intereses') { c.innerHTML = interesesLoadingHtml(); loadIntereses(); }
+  else if(state.activeModule==='grupo') { c.innerHTML = grupoLoadingHtml(); loadGrupo(); }
   else if(state.activeModule==='reportes') c.innerHTML = reportesHtml();
   else if(state.activeModule==='centrodatos') c.innerHTML = centroDatosHtml();
   else if(state.activeModule==='carga') c.innerHTML = cargaHtml();
@@ -1357,6 +1361,109 @@ function bindInteresesEvents(){
   const btn = document.getElementById('intExportBtn');
   if(btn) btn.addEventListener('click', exportarReporteIntereses);
 }
+
+/* ================= GRUPO (Febeca / Beval / Sillaca / FQ) ================= */
+let _grupoData = null;
+function grupoLoadingHtml(){
+  return `<div class="table-card" style="padding:32px;text-align:center;">
+    <div class="spinner" style="margin:0 auto 12px;"></div>
+    <span class="text-muted">Cargando deuda del grupo…</span>
+  </div>`;
+}
+function callGrupo(fnName, args, onSuccess, onError){
+  fetch('/api/grupo-action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: fnName, args: args || [] })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.success) { if(onSuccess) onSuccess(res.data); }
+    else {
+      const msg = res.error || 'Error en el servidor.';
+      toast(msg, true);
+      if(onError) onError({ message: msg });
+    }
+  })
+  .catch(() => { toast('No se pudo conectar con el servidor.', true); if(onError) onError(); });
+}
+async function loadGrupo(){
+  const c = document.getElementById('content');
+  if(!c || state.activeModule!=='grupo') return;
+  c.innerHTML = grupoLoadingHtml();
+  try {
+    const r = await fetch('/api/grupo-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getGrupoBootstrapData', args: [] })
+    });
+    const res = await r.json();
+    if(!res.success) throw new Error(res.error || 'Error al cargar datos del grupo.');
+    _grupoData = res.data;
+    if(c && state.activeModule==='grupo') c.innerHTML = grupoHtml(_grupoData);
+    bindGrupoEvents();
+  } catch(e) {
+    if(c) c.innerHTML = '<div class="table-card" style="padding:24px;"><b style="color:var(--red);">Error al cargar el grupo: </b>' + e.message + '<div class="text-muted" style="margin-top:8px;font-size:12px;">Verificá que la hoja "Matriz - Deuda Financiera 25-26" esté compartida (Editor) con el service account de la app.</div></div>';
+  }
+}
+function grupoTasaFmt(t){ return (t*100).toFixed(2) + '%'; }
+function grupoPrestamosTablaHtml(prestamos){
+  if(!prestamos.length) return '<div class="empty-state">Sin préstamos.</div>';
+  return `<div class="table-scroll" style="max-height:calc(100vh - 340px);">
+    <table><thead><tr><th>Compañía</th><th>Acreedor</th><th>Tipo</th><th class="text-right">Capital Inicial</th><th class="text-right">Capital Actual</th><th class="text-right">Tasa</th><th>Vencimiento</th><th>Estado</th></tr></thead>
+    <tbody>${prestamos.map(p=>`<tr><td><b>${p.empresa}</b></td><td>${p.acreedor}</td><td>${p.tipoDocumento||'—'}</td><td class="text-right mono">${fmtUSD(p.capitalInicial)}</td><td class="text-right mono"><b>${fmtUSD(p.capitalActual)}</b></td><td class="text-right mono">${grupoTasaFmt(p.tasa)}</td><td>${p.fechaVencimiento||'—'}</td><td><span class="badge ${p.estado.cls}">${p.estado.label}</span>${p.estado.detail?'<div class="text-muted" style="font-size:10.5px;margin-top:2px;">'+p.estado.detail+'</div>':''}</td></tr>`).join('')}</tbody></table>
+  </div>`;
+}
+function grupoHtml(d){
+  const sel = state.grupoEmpresa || 'TODAS';
+  const empresas = d.empresas || [];
+  const esTodas = sel === 'TODAS';
+  const resumen = esTodas ? d.totalGrupo : (d.porEmpresa[sel] || { totalCapitalActual:0, totalCapitalInicial:0, cantidad:0, vencidos:0 });
+  const prestamos = esTodas
+    ? empresas.flatMap(e => d.porEmpresa[e].prestamos)
+    : (d.porEmpresa[sel] ? d.porEmpresa[sel].prestamos : []);
+  const kpis = `
+    <div class="kpi-grid">
+      <div class="kpi-card"><span class="kpi-label">Capital Actual ${esTodas?'(Grupo)':'('+sel+')'}</span><div class="kpi-value">${fmtUSD(resumen.totalCapitalActual)}</div></div>
+      <div class="kpi-card"><span class="kpi-label">Capital Original</span><div class="kpi-value">${fmtUSD(resumen.totalCapitalInicial)}</div></div>
+      <div class="kpi-card"><span class="kpi-label">Préstamos</span><div class="kpi-value">${resumen.cantidad}</div></div>
+      <div class="kpi-card"><span class="kpi-label">Vencidos</span><div class="kpi-value" style="color:${resumen.vencidos>0?'var(--red)':'inherit'};">${resumen.vencidos}</div></div>
+    </div>`;
+  const desglose = esTodas ? `
+    <div class="table-card" style="margin-bottom:14px;">
+      <div class="panel-header-dark">${ic('bank')}<span>Desglose por Compañía</span></div>
+      <div class="table-scroll">
+        <table><thead><tr><th>Compañía</th><th class="text-right">Capital Actual</th><th class="text-right">% del Grupo</th><th class="text-right">Préstamos</th><th class="text-right">Vencidos</th></tr></thead>
+        <tbody>${empresas.map(e=>{ const v=d.porEmpresa[e]; const pct = d.totalGrupo.totalCapitalActual ? (v.totalCapitalActual/d.totalGrupo.totalCapitalActual*100) : 0; return `<tr><td><b>${e}</b></td><td class="text-right mono">${fmtUSD(v.totalCapitalActual)}</td><td class="text-right mono">${pct.toFixed(1)}%</td><td class="text-right mono">${v.cantidad}</td><td class="text-right mono" style="color:${v.vencidos>0?'var(--red)':'inherit'};">${v.vencidos}</td></tr>`; }).join('')}
+        <tr class="total-row"><td>TOTAL GRUPO</td><td class="text-right mono">${fmtUSD(d.totalGrupo.totalCapitalActual)}</td><td class="text-right mono">100%</td><td class="text-right mono">${d.totalGrupo.cantidad}</td><td class="text-right mono">${d.totalGrupo.vencidos}</td></tr>
+        </tbody></table>
+      </div>
+    </div>` : '';
+  return `
+    <div class="table-toolbar" style="margin-bottom:14px;background:var(--card);border:1px solid var(--border);border-radius:10px;">
+      <select class="tb-select" id="grupoEmpresaSel">
+        <option value="TODAS" ${esTodas?'selected':''}>Todas las compañías (Grupo)</option>
+        ${empresas.map(e=>`<option value="${e}" ${sel===e?'selected':''}>${e}</option>`).join('')}
+      </select>
+      <div class="spacer"></div>
+      <span class="text-muted" style="font-size:11.5px;">Fuente: Matriz - Deuda Financiera 25-26 (MAESTRO_PRESTAMOS) · ${d.fecha}</span>
+    </div>
+    ${kpis}
+    ${desglose}
+    <div class="table-card">
+      <div class="panel-header-dark">${ic('bank')}<span>Préstamos ${esTodas?'(Todas las compañías)':'— '+sel}</span></div>
+      ${grupoPrestamosTablaHtml(prestamos)}
+    </div>`;
+}
+function bindGrupoEvents(){
+  const sel = document.getElementById('grupoEmpresaSel');
+  if(sel) sel.addEventListener('change', function(){
+    state.grupoEmpresa = this.value;
+    const c = document.getElementById('content');
+    if(c && _grupoData) c.innerHTML = grupoHtml(_grupoData);
+    bindGrupoEvents();
+  });
+}
 function exportarReporteIntereses(){
   if(!_interesesData) return;
   const d = _interesesData;
@@ -1535,7 +1642,7 @@ function interesesHtml(d){
 }
 
 function moduleTitle(){
-  return {dashboard:'Panel de Control', lines:'Operaciones', calendario:'Calendario de Pagos', proyecciones:'Proyecciones', leasing:'Leasing Financiero', ops:'Conciliación', historico:'Histórico', intereses:'Apartado de Intereses', reportes:'Reportes', centrodatos:'Centro de Datos', carga:'Importar histórico', usuarios:'Usuarios', audit:'Seguridad y Auditoría', devhub:'Hub de Desarrollo'}[state.activeModule];
+  return {dashboard:'Panel de Control', lines:'Operaciones', calendario:'Calendario de Pagos', proyecciones:'Proyecciones', leasing:'Leasing Financiero', ops:'Conciliación', historico:'Histórico', intereses:'Apartado de Intereses', reportes:'Reportes', centrodatos:'Centro de Datos', carga:'Importar histórico', usuarios:'Usuarios', audit:'Seguridad y Auditoría', devhub:'Hub de Desarrollo', grupo:'Deuda Grupo'}[state.activeModule];
 }
 
 /* ================= REPORTES ================= */
