@@ -79,7 +79,8 @@ function daysUntil(dateStr){
 function lineaSaldoActual(l){
   const plan = paymentPlans[l.id]||[];
   const pagado = plan.filter(p=>p.estado==='Pagado'||p.estado==='Conciliado').reduce((s,p)=>s+p.capital,0);
-  return Math.max((l.aprobado!=null?l.aprobado:0) - pagado, 0);
+  const saldo = (l.aprobado!=null?l.aprobado:0) - pagado;
+  return Math.max(Math.round(saldo*100)/100, 0);
 }
 function lineaProximoPago(l){
   const plan = (paymentPlans[l.id]||[]).filter(p=>p.estado==='Pendiente').sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
@@ -99,7 +100,8 @@ function estadoLinea(l){
 function leasingSaldoActual(contrato){
   const plan = leasingPagos[contrato.id]||[];
   const pagado = plan.filter(p=>p.estado==='Pagado'||p.estado==='Conciliado').reduce((s,p)=>s+p.capital,0);
-  return Math.max(contrato.monto - pagado, 0);
+  const saldo = contrato.monto - pagado;
+  return Math.max(Math.round(saldo*100)/100, 0);
 }
 
 /* ================= STATE ================= */
