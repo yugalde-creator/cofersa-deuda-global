@@ -248,17 +248,28 @@ export default async function handler(req, res) {
 
     let emailSent = false, emailError = null;
     try {
-      const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-      });
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: 'yugalde@cofersa.cr',
-        subject: `Comprobante ${estadoLabel}: ${linea.Banco} ${linea.NumOp} — ${fmtDateDisplay(fecha)}`,
-        html,
-      });
-      emailSent = true;
+      const usuarios = await readRows(SHEETS.USUARIOS);
+      const to = [...new Set(
+        usuarios
+          .filter(u => (u.Notificar || 'Si').toString().trim().toLowerCase() !== 'no')
+          .map(u => (u.Email || '').toString().trim())
+          .filter(Boolean)
+      )];
+      if (to.length) {
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+        });
+        await transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: to.join(','),
+          subject: `Comprobante ${estadoLabel}: ${linea.Banco} ${linea.NumOp} — ${fmtDateDisplay(fecha)}`,
+          html,
+        });
+        emailSent = true;
+      } else {
+        emailError = 'Sin destinatarios (todos marcados como "No notificar" en la hoja Usuarios)';
+      }
     } catch(e) { emailError = e.message; }
 
     return res.status(200).json({

@@ -1706,8 +1706,8 @@ function usuariosHtml(){
       <div class="table-toolbar"><b style="font-size:13px;">Directorio de Usuarios</b><div class="spacer"></div><button class="btn btn-primary" id="newUserBtn" ${ro?'disabled title="Requiere rol Administrador"':''}>${ic('plus')} Nuevo Usuario</button></div>
       <div class="import-hint" style="padding:10px 14px 0;">El rol se asigna aquí o directamente en la hoja <b>Usuarios</b> del Sheet. Solo cuentas de Google presentes en esa hoja pueden entrar al sistema.</div>
       <div class="table-scroll" style="max-height:calc(100vh - 300px);">
-        <table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th></th></tr></thead>
-        <tbody>${usuarios.map(u=>`<tr><td><b>${u.nombre}</b></td><td>${u.email}</td><td><span class="role-pill ${u.rol==='Admin'?'admin':'consulta'}">${u.rol}</span></td><td>${isReadOnly()?'':'<button class="btn" style="padding:3px 8px;font-size:11px;" data-editu="${u.email}">Editar</button>'}</td></tr>`).join('') || '<tr><td colspan="4"><div class="empty-state">Sin usuarios.</div></td></tr>'}</tbody></table>
+        <table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Notificaciones</th><th></th></tr></thead>
+        <tbody>${usuarios.map(u=>`<tr><td><b>${u.nombre}</b></td><td>${u.email}</td><td><span class="role-pill ${u.rol==='Admin'?'admin':'consulta'}">${u.rol}</span></td><td>${u.notificar!==false?'<span class="role-pill admin">Sí recibe</span>':'<span class="role-pill consulta">No recibe</span>'}</td><td>${isReadOnly()?'':'<button class="btn" style="padding:3px 8px;font-size:11px;" data-editu="${u.email}">Editar</button>'}</td></tr>`).join('') || '<tr><td colspan="5"><div class="empty-state">Sin usuarios.</div></td></tr>'}</tbody></table>
       </div>
     </div>`;
 }
@@ -1719,6 +1719,7 @@ function openNewUserModal(){
         <div class="form-field full"><label>Nombre</label><input type="text" id="u_nombre" placeholder="Nombre completo"></div>
         <div class="form-field full"><label>Email (cuenta de Google)</label><input type="email" id="u_email" placeholder="usuario@cofersa.cr"></div>
         <div class="form-field"><label>Rol</label><select id="u_rol"><option value="Consulta">Consulta</option><option value="Admin">Admin</option></select></div>
+        <div class="form-field full"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="u_notificar" checked> Recibe notificaciones por correo (alertas de pago, resúmenes, comprobantes)</label></div>
       </div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="saveUserBtn">${ic('plus')} Guardar</button></div>`);
@@ -1726,9 +1727,10 @@ function openNewUserModal(){
     const nombre=document.getElementById('u_nombre').value.trim();
     const email=document.getElementById('u_email').value.trim();
     const rol=document.getElementById('u_rol').value;
+    const notificar=document.getElementById('u_notificar').checked;
     if(!nombre||!email){ toast('Completa nombre y correo.', true); return; }
     const btn = document.getElementById('saveUserBtn'); btn.disabled = true;
-    callServer('crearUsuario', [{nombre, email, rol}], ()=>{
+    callServer('crearUsuario', [{nombre, email, rol, notificar}], ()=>{
       closeModal(); reloadData(()=>{ renderContent(); toast('Usuario agregado.'); });
     }, ()=>{ btn.disabled = false; });
   });
@@ -2026,13 +2028,15 @@ function openEditUserModal(targetEmail){
       <div class="form-grid">
         <div class="form-field full"><label>Nombre</label><input id="eu_nombre" value="${u.nombre}"></div>
         <div class="form-field full"><label>Rol</label><select id="eu_rol"><option ${u.rol==='Admin'?'selected':''}>Admin</option><option ${u.rol==='Consulta'?'selected':''}>Consulta</option></select></div>
+        <div class="form-field full"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="eu_notificar" ${u.notificar!==false?'checked':''}> Recibe notificaciones por correo (alertas de pago, resúmenes, comprobantes)</label></div>
       </div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="saveEditUserBtn">${ic('check')} Guardar</button></div>`);
   document.getElementById('saveEditUserBtn').addEventListener('click', ()=> guard(()=>{
     const nombre = document.getElementById('eu_nombre').value.trim();
     const rol = document.getElementById('eu_rol').value;
-    callServer('editarUsuario', [targetEmail, { Nombre: nombre, Rol: rol }], ()=>{
+    const notificar = document.getElementById('eu_notificar').checked ? 'Si' : 'No';
+    callServer('editarUsuario', [targetEmail, { Nombre: nombre, Rol: rol, Notificar: notificar }], ()=>{
       closeModal(); reloadData(()=>{ renderContent(); toast('Usuario actualizado.'); });
     });
   }));
