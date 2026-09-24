@@ -1313,7 +1313,7 @@ function historicoHtml(){
   } else {
     body = `<div class="table-scroll" style="max-height:calc(100vh - 320px);">
       <table><thead><tr><th>ID Pago</th><th>Línea</th><th>Banco</th><th>Fecha</th><th class="text-right">Monto</th><th>Estado</th><th></th></tr></thead>
-      <tbody>${history.map(h=>{ const line=lines.find(l=>l.id===h.linea); const cur=line?line.moneda:'USD'; return `<tr><td><b>${h.id}</b></td><td>${line?.numOp||h.linea}</td><td>${h.banco}</td><td>${h.fecha}</td><td class="text-right mono">${fmtNative(h.monto,cur)}</td><td><span class="badge ${h.estado==='Conciliado'?'badge-green':'badge-amber'}">${h.estado}</span></td><td>${isReadOnly()?'':'<button class="btn" style="padding:3px 8px;font-size:11px;" data-delp="${h.id}">Eliminar</button>'}</td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty-state">Sin pagos históricos registrados.</div></td></tr>'}</tbody></table>
+      <tbody>${history.map(h=>{ const line=lines.find(l=>l.id===h.linea); const cur=line?line.moneda:'USD'; return `<tr><td><b>${h.id}</b></td><td>${line?.numOp||h.linea}</td><td>${h.banco}</td><td>${h.fecha}</td><td class="text-right mono">${fmtNative(h.monto,cur)}</td><td><span class="badge ${h.estado==='Conciliado'?'badge-green':'badge-amber'}">${h.estado}</span></td><td>${isReadOnly()?'':`<button class="btn" style="padding:3px 8px;font-size:11px;" data-delp="${h.id}">Eliminar</button>`}</td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty-state">Sin pagos históricos registrados.</div></td></tr>'}</tbody></table>
     </div>`;
   }
   return `<div class="table-card">
@@ -1707,7 +1707,7 @@ function usuariosHtml(){
       <div class="import-hint" style="padding:10px 14px 0;">El rol se asigna aquí o directamente en la hoja <b>Usuarios</b> del Sheet. Solo cuentas de Google presentes en esa hoja pueden entrar al sistema.</div>
       <div class="table-scroll" style="max-height:calc(100vh - 300px);">
         <table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Notificaciones</th><th></th></tr></thead>
-        <tbody>${usuarios.map(u=>`<tr><td><b>${u.nombre}</b></td><td>${u.email}</td><td><span class="role-pill ${u.rol==='Admin'?'admin':'consulta'}">${u.rol}</span></td><td>${u.notificar!==false?'<span class="role-pill admin">Sí recibe</span>':'<span class="role-pill consulta">No recibe</span>'}</td><td>${isReadOnly()?'':'<button class="btn" style="padding:3px 8px;font-size:11px;" data-editu="${u.email}">Editar</button>'}</td></tr>`).join('') || '<tr><td colspan="5"><div class="empty-state">Sin usuarios.</div></td></tr>'}</tbody></table>
+        <tbody>${usuarios.map(u=>`<tr><td><b>${u.nombre}</b></td><td>${u.email}</td><td><span class="role-pill ${u.rol==='Admin'?'admin':'consulta'}">${u.rol}</span></td><td>${u.notificar!==false?'<span class="role-pill admin">Sí recibe</span>':'<span class="role-pill consulta">No recibe</span>'}</td><td>${isReadOnly()?'':`<button class="btn" style="padding:3px 8px;font-size:11px;" data-editu="${u.email}">Editar</button>`}</td></tr>`).join('') || '<tr><td colspan="5"><div class="empty-state">Sin usuarios.</div></td></tr>'}</tbody></table>
       </div>
     </div>`;
 }
