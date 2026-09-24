@@ -76,6 +76,13 @@ function daysUntil(dateStr){
   const today = new Date(); today.setHours(0,0,0,0);
   return Math.round((d-today)/86400000);
 }
+function fmtDiasLabel(dias){
+  if(dias===null) return '—';
+  if(dias<0) return 'Vencido hace '+Math.abs(dias)+' día'+(Math.abs(dias)===1?'':'s');
+  if(dias===0) return 'Hoy';
+  if(dias===1) return 'Mañana';
+  return 'en '+dias+' días';
+}
 function lineaSaldoActual(l){
   const plan = paymentPlans[l.id]||[];
   const pagado = plan.filter(p=>p.estado==='Pagado'||p.estado==='Conciliado').reduce((s,p)=>s+p.capital,0);
@@ -537,7 +544,7 @@ function indicadoresFinancierosHtml(){
     ['Tasa promedio ponderada', k.tasaPonderada.toFixed(2)+'%'],
     ['% Uso total de líneas', usoTotal.toFixed(1)+'%'],
     ['Tipo de cambio', '₡'+FX.CRC.toFixed(2)+' = $1.00'],
-    ['Próximo vencimiento', k.prox ? (daysUntil(lineaProximoPago(k.prox))+' días · '+(k.prox.numOp||k.prox.id)) : 'Sin pagos programados'],
+    ['Próximo vencimiento', k.prox ? (fmtDiasLabel(daysUntil(lineaProximoPago(k.prox)))+' · '+k.prox.banco+' '+(k.prox.numOp||k.prox.id)) : 'Sin pagos programados'],
   ];
   return `
     <div class="table-card">
