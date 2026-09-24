@@ -1719,7 +1719,7 @@ function openNewUserModal(){
         <div class="form-field full"><label>Nombre</label><input type="text" id="u_nombre" placeholder="Nombre completo"></div>
         <div class="form-field full"><label>Email (cuenta de Google)</label><input type="email" id="u_email" placeholder="usuario@cofersa.cr"></div>
         <div class="form-field"><label>Rol</label><select id="u_rol"><option value="Consulta">Consulta</option><option value="Admin">Admin</option></select></div>
-        <div class="form-field full"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="u_notificar" checked> Recibe notificaciones por correo (alertas de pago, resúmenes, comprobantes)</label></div>
+        <div class="form-field full"><label style="display:flex;align-items:center;gap:8px;font-weight:400;text-transform:none;letter-spacing:normal;"><input type="checkbox" id="u_notificar" checked style="width:16px;height:16px;padding:0;border:none;flex:none;"> Recibe notificaciones por correo (alertas de pago, resúmenes, comprobantes)</label></div>
       </div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="saveUserBtn">${ic('plus')} Guardar</button></div>`);
@@ -2028,7 +2028,7 @@ function openEditUserModal(targetEmail){
       <div class="form-grid">
         <div class="form-field full"><label>Nombre</label><input id="eu_nombre" value="${u.nombre}"></div>
         <div class="form-field full"><label>Rol</label><select id="eu_rol"><option ${u.rol==='Admin'?'selected':''}>Admin</option><option ${u.rol==='Consulta'?'selected':''}>Consulta</option></select></div>
-        <div class="form-field full"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="eu_notificar" ${u.notificar!==false?'checked':''}> Recibe notificaciones por correo (alertas de pago, resúmenes, comprobantes)</label></div>
+        <div class="form-field full"><label style="display:flex;align-items:center;gap:8px;font-weight:400;text-transform:none;letter-spacing:normal;"><input type="checkbox" id="eu_notificar" ${u.notificar!==false?'checked':''} style="width:16px;height:16px;padding:0;border:none;flex:none;"> Recibe notificaciones por correo (alertas de pago, resúmenes, comprobantes)</label></div>
       </div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="saveEditUserBtn">${ic('check')} Guardar</button></div>`);
