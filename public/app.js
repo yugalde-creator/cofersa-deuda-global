@@ -137,7 +137,7 @@ let state = {
   proyeccionFiltro: '12meses',
   lineEstadoFilter: '', pagoEstadoFilter: '', histEstadoFilter: '', leasingEstadoFilter: '',
   monedaFilter: '', tipoFilter: '',
-  grupoEmpresa: 'TODAS',
+  panelEmpresa: 'COFERSA',
 };
 
 function toUSD(amount, cur){ return cur==='USD' ? amount : amount / FX[cur]; }
@@ -277,8 +277,6 @@ function renderShell(){
         <div class="nav-group-label">Control</div>
         <div class="nav-item ${state.activeModule==='audit'?'active':''}" data-mod="audit">${ic('audit')}<span class="nav-label">Seguridad y Auditoría</span></div>
       <div class="nav-item ${state.activeModule==='devhub'?'active':''}" data-mod="devhub">${ic('database')}<span class="nav-label">Hub de Desarrollo</span></div>
-        <div class="nav-group-label">Grupo</div>
-        <div class="nav-item ${state.activeModule==='grupo'?'active':''}" data-mod="grupo">${ic('bank')}<span class="nav-label">Deuda Grupo</span></div>
       </nav>
       <div class="sidebar-footer">
         <button class="collapse-btn" id="collapseBtn">${ic(state.sidebarCollapsed?'chevronRight':'chevronLeft')}<span class="nav-label">Colapsar</span></button>
@@ -372,7 +370,11 @@ function notifItemsHtml(){
 /* ================= CONTENT ROUTER ================= */
 function renderContent(){
   const c = document.getElementById('content');
-  if(state.activeModule==='dashboard') c.innerHTML = dashboardHtml();
+  if(state.activeModule==='dashboard'){
+    const sel = state.panelEmpresa || 'COFERSA';
+    c.innerHTML = dashboardHtml();
+    if(sel!=='COFERSA' && !_grupoData) loadPanelGrupo();
+  }
   else if(state.activeModule==='lines') c.innerHTML = linesHtml();
   else if(state.activeModule==='calendario') c.innerHTML = calendarioHtml();
   else if(state.activeModule==='proyecciones') c.innerHTML = proyeccionesHtml();
@@ -380,7 +382,6 @@ function renderContent(){
   else if(state.activeModule==='ops') c.innerHTML = opsHtml();
   else if(state.activeModule==='historico') c.innerHTML = historicoHtml();
   else if(state.activeModule==='intereses') { c.innerHTML = interesesLoadingHtml(); loadIntereses(); }
-  else if(state.activeModule==='grupo') { c.innerHTML = grupoLoadingHtml(); loadGrupo(); }
   else if(state.activeModule==='reportes') c.innerHTML = reportesHtml();
   else if(state.activeModule==='centrodatos') c.innerHTML = centroDatosHtml();
   else if(state.activeModule==='carga') c.innerHTML = cargaHtml();
@@ -595,10 +596,29 @@ function amortizacionProximosHtml(){
       </div>
     </div>`;
 }
+const PANEL_EMPRESAS = ['FEBECA','BEVAL','SILLACA','FQ'];
+function panelEmpresaSelectorHtml(){
+  const sel = state.panelEmpresa || 'COFERSA';
+  return `<div class="table-toolbar" style="margin-bottom:14px;background:var(--card);border:1px solid var(--border);border-radius:10px;">
+    <select class="tb-select" id="panelEmpresaSel">
+      <option value="COFERSA" ${sel==='COFERSA'?'selected':''}>Cofersa</option>
+      <option value="TODAS" ${sel==='TODAS'?'selected':''}>Todas las compañías (Grupo)</option>
+      ${PANEL_EMPRESAS.map(e=>`<option value="${e}" ${sel===e?'selected':''}>${e}</option>`).join('')}
+    </select>
+    <div class="spacer"></div>
+    <span class="text-muted" style="font-size:11.5px;">${sel==='COFERSA'?'':'Fuente: Matriz - Deuda Financiera 25-26 (MAESTRO_PRESTAMOS)'}</span>
+  </div>`;
+}
 function dashboardHtml(){
-  return '<div class="panel-grid">' + saldosPorBancoHtml() + distribucionPorMonedaHtml() + '</div>'
-    + '<div class="panel-grid">' + indicadoresFinancierosHtml() + tendenciaTasasPorBancoHtml() + '</div>'
-    + tendenciaDeudaHtml();
+  const sel = state.panelEmpresa || 'COFERSA';
+  if(sel === 'COFERSA'){
+    return panelEmpresaSelectorHtml()
+      + '<div class="panel-grid">' + saldosPorBancoHtml() + distribucionPorMonedaHtml() + '</div>'
+      + '<div class="panel-grid">' + indicadoresFinancierosHtml() + tendenciaTasasPorBancoHtml() + '</div>'
+      + tendenciaDeudaHtml();
+  }
+  if(!_grupoData) return panelEmpresaSelectorHtml() + grupoLoadingHtml();
+  return panelEmpresaSelectorHtml() + grupoBodyHtml(_grupoData, sel);
 }
 
 /* ================= LÍNEAS Y BANCOS ================= */
@@ -1394,10 +1414,9 @@ function callGrupo(fnName, args, onSuccess, onError){
   })
   .catch(() => { toast('No se pudo conectar con el servidor.', true); if(onError) onError(); });
 }
-async function loadGrupo(){
+async function loadPanelGrupo(){
   const c = document.getElementById('content');
-  if(!c || state.activeModule!=='grupo') return;
-  c.innerHTML = grupoLoadingHtml();
+  if(!c || state.activeModule!=='dashboard') return;
   try {
     const r = await fetch('/api/grupo-action', {
       method: 'POST',
@@ -1407,10 +1426,10 @@ async function loadGrupo(){
     const res = await r.json();
     if(!res.success) throw new Error(res.error || 'Error al cargar datos del grupo.');
     _grupoData = res.data;
-    if(c && state.activeModule==='grupo') c.innerHTML = grupoHtml(_grupoData);
-    bindGrupoEvents();
+    if(c && state.activeModule==='dashboard' && (state.panelEmpresa||'COFERSA')!=='COFERSA') c.innerHTML = dashboardHtml();
+    bindContentEvents();
   } catch(e) {
-    if(c) c.innerHTML = '<div class="table-card" style="padding:24px;"><b style="color:var(--red);">Error al cargar el grupo: </b>' + e.message + '<div class="text-muted" style="margin-top:8px;font-size:12px;">Verificá que la hoja "Matriz - Deuda Financiera 25-26" esté compartida (Editor) con el service account de la app.</div></div>';
+    if(c && state.activeModule==='dashboard') c.innerHTML = panelEmpresaSelectorHtml() + '<div class="table-card" style="padding:24px;"><b style="color:var(--red);">Error al cargar el grupo: </b>' + e.message + '<div class="text-muted" style="margin-top:8px;font-size:12px;">Verificá que la hoja "Matriz - Deuda Financiera 25-26" esté compartida (Editor) con el service account de la app.</div></div>';
   }
 }
 function grupoTasaFmt(t){ return (t*100).toFixed(2) + '%'; }
@@ -1421,8 +1440,7 @@ function grupoPrestamosTablaHtml(prestamos){
     <tbody>${prestamos.map(p=>`<tr><td><b>${p.empresa}</b></td><td>${p.acreedor}</td><td>${p.tipoDocumento||'—'}</td><td class="text-right mono">${fmtUSD(p.capitalInicial)}</td><td class="text-right mono"><b>${fmtUSD(p.capitalActual)}</b></td><td class="text-right mono">${grupoTasaFmt(p.tasa)}</td><td>${p.fechaVencimiento||'—'}</td><td><span class="badge ${p.estado.cls}">${p.estado.label}</span>${p.estado.detail?'<div class="text-muted" style="font-size:10.5px;margin-top:2px;">'+p.estado.detail+'</div>':''}</td></tr>`).join('')}</tbody></table>
   </div>`;
 }
-function grupoHtml(d){
-  const sel = state.grupoEmpresa || 'TODAS';
+function grupoBodyHtml(d, sel){
   const empresas = d.empresas || [];
   const esTodas = sel === 'TODAS';
   const resumen = esTodas ? d.totalGrupo : (d.porEmpresa[sel] || { totalCapitalActual:0, totalCapitalInicial:0, cantidad:0, vencidos:0 });
@@ -1447,29 +1465,12 @@ function grupoHtml(d){
       </div>
     </div>` : '';
   return `
-    <div class="table-toolbar" style="margin-bottom:14px;background:var(--card);border:1px solid var(--border);border-radius:10px;">
-      <select class="tb-select" id="grupoEmpresaSel">
-        <option value="TODAS" ${esTodas?'selected':''}>Todas las compañías (Grupo)</option>
-        ${empresas.map(e=>`<option value="${e}" ${sel===e?'selected':''}>${e}</option>`).join('')}
-      </select>
-      <div class="spacer"></div>
-      <span class="text-muted" style="font-size:11.5px;">Fuente: Matriz - Deuda Financiera 25-26 (MAESTRO_PRESTAMOS) · ${d.fecha}</span>
-    </div>
     ${kpis}
     ${desglose}
     <div class="table-card">
-      <div class="panel-header-dark">${ic('bank')}<span>Préstamos ${esTodas?'(Todas las compañías)':'— '+sel}</span></div>
+      <div class="panel-header-dark">${ic('bank')}<span>Préstamos ${esTodas?'(Todas las compañías)':'— '+sel}</span><div class="spacer"></div><span style="text-transform:none;font-weight:600;opacity:.8;">${d.fecha}</span></div>
       ${grupoPrestamosTablaHtml(prestamos)}
     </div>`;
-}
-function bindGrupoEvents(){
-  const sel = document.getElementById('grupoEmpresaSel');
-  if(sel) sel.addEventListener('change', function(){
-    state.grupoEmpresa = this.value;
-    const c = document.getElementById('content');
-    if(c && _grupoData) c.innerHTML = grupoHtml(_grupoData);
-    bindGrupoEvents();
-  });
 }
 function exportarReporteIntereses(){
   if(!_interesesData) return;
@@ -1649,7 +1650,7 @@ function interesesHtml(d){
 }
 
 function moduleTitle(){
-  return {dashboard:'Panel de Control', lines:'Operaciones', calendario:'Calendario de Pagos', proyecciones:'Proyecciones', leasing:'Leasing Financiero', ops:'Conciliación', historico:'Histórico', intereses:'Apartado de Intereses', reportes:'Reportes', centrodatos:'Centro de Datos', carga:'Importar histórico', usuarios:'Usuarios', audit:'Seguridad y Auditoría', devhub:'Hub de Desarrollo', grupo:'Deuda Grupo'}[state.activeModule];
+  return {dashboard:'Panel de Control', lines:'Operaciones', calendario:'Calendario de Pagos', proyecciones:'Proyecciones', leasing:'Leasing Financiero', ops:'Conciliación', historico:'Histórico', intereses:'Apartado de Intereses', reportes:'Reportes', centrodatos:'Centro de Datos', carga:'Importar histórico', usuarios:'Usuarios', audit:'Seguridad y Auditoría', devhub:'Hub de Desarrollo'}[state.activeModule];
 }
 
 /* ================= REPORTES ================= */
@@ -1748,6 +1749,8 @@ function bindContentEvents(){
   if(state.activeModule==='dashboard'){
   const gsel = document.getElementById('deudaGranSel');
   if(gsel) gsel.addEventListener('change', e=>{ state.deudaGranularidad = e.target.value; renderContent(); });
+  const psel = document.getElementById('panelEmpresaSel');
+  if(psel) psel.addEventListener('change', e=>{ state.panelEmpresa = e.target.value; renderContent(); });
   }
   if(state.activeModule==='lines'){
     document.getElementById('searchInput').addEventListener('input', e=>{ state.searchQuery=e.target.value; document.getElementById('linesBody').innerHTML = filteredLines().map(lineRowHtml).join('') || '<tr><td colspan="10"><div class="empty-state">No se encontraron líneas de crédito con ese criterio.</div></td></tr>'; bindRowClicks(); });
