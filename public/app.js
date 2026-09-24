@@ -596,7 +596,7 @@ function amortizacionProximosHtml(){
       </div>
     </div>`;
 }
-const PANEL_EMPRESAS = ['FEBECA','BEVAL','SILLACA','FQ'];
+const PANEL_EMPRESAS = ['FEBECA','BEVAL','SILLACA','FQ','PRISMA'];
 function panelEmpresaSelectorHtml(){
   const sel = state.panelEmpresa || 'COFERSA';
   return `<div class="table-toolbar" style="margin-bottom:14px;background:var(--card);border:1px solid var(--border);border-radius:10px;">
@@ -1436,9 +1436,120 @@ function grupoTasaFmt(t){ return (t*100).toFixed(2) + '%'; }
 function grupoPrestamosTablaHtml(prestamos){
   if(!prestamos.length) return '<div class="empty-state">Sin préstamos.</div>';
   return `<div class="table-scroll" style="max-height:calc(100vh - 340px);">
-    <table><thead><tr><th>Compañía</th><th>Acreedor</th><th>Tipo</th><th class="text-right">Capital Inicial</th><th class="text-right">Capital Actual</th><th class="text-right">Tasa</th><th>Vencimiento</th><th>Estado</th></tr></thead>
-    <tbody>${prestamos.map(p=>`<tr><td><b>${p.empresa}</b></td><td>${p.acreedor}</td><td>${p.tipoDocumento||'—'}</td><td class="text-right mono">${fmtUSD(p.capitalInicial)}</td><td class="text-right mono"><b>${fmtUSD(p.capitalActual)}</b></td><td class="text-right mono">${grupoTasaFmt(p.tasa)}</td><td>${p.fechaVencimiento||'—'}</td><td><span class="badge ${p.estado.cls}">${p.estado.label}</span>${p.estado.detail?'<div class="text-muted" style="font-size:10.5px;margin-top:2px;">'+p.estado.detail+'</div>':''}</td></tr>`).join('')}</tbody></table>
+    <table><thead><tr><th>Compañía</th><th>Acreedor</th><th>Tipo</th><th>Moneda</th><th class="text-right">Capital Inicial</th><th class="text-right">Capital Actual</th><th class="text-right">Tasa</th><th>Vencimiento</th><th>Estado</th></tr></thead>
+    <tbody>${prestamos.map(p=>`<tr><td><b>${p.empresa}</b></td><td>${p.acreedor}</td><td>${p.tipoDocumento||'—'}</td><td><span class="badge ${p.moneda==='VES'?'badge-amber':'badge-blue'}">${p.moneda}</span></td><td class="text-right mono">${fmtUSD(p.capitalInicial)}</td><td class="text-right mono"><b>${fmtUSD(p.capitalActual)}</b></td><td class="text-right mono">${grupoTasaFmt(p.tasa)}</td><td>${p.fechaVencimiento||'—'}</td><td><span class="badge ${p.estado.cls}">${p.estado.label}</span>${p.estado.detail?'<div class="text-muted" style="font-size:10.5px;margin-top:2px;">'+p.estado.detail+'</div>':''}</td></tr>`).join('')}</tbody></table>
   </div>`;
+}
+function grupoAcreedorRows(prestamos){
+  const map = {};
+  prestamos.forEach(p=>{
+    if(!map[p.acreedor]) map[p.acreedor] = { capitalActual:0, capitalInicial:0, cantidad:0 };
+    map[p.acreedor].capitalActual += p.capitalActual;
+    map[p.acreedor].capitalInicial += p.capitalInicial;
+    map[p.acreedor].cantidad++;
+  });
+  return Object.entries(map).map(([acreedor,v])=>({ acreedor, ...v })).sort((a,b)=>b.capitalActual-a.capitalActual);
+}
+function grupoSaldosPorAcreedorHtml(prestamos){
+  const rows = grupoAcreedorRows(prestamos);
+  const total = rows.reduce((s,r)=>s+r.capitalActual,0);
+  const totalIni = rows.reduce((s,r)=>s+r.capitalInicial,0);
+  return `
+    <div class="table-card">
+      <div class="panel-header-dark">${ic('bank')}<span>Saldos por Acreedor (USD)</span></div>
+      <div class="table-scroll">
+        <table><thead><tr><th>Acreedor</th><th class="text-right">Saldo Actual</th><th class="text-right">Capital Original</th><th class="text-right">Préstamos</th></tr></thead>
+        <tbody>
+          ${rows.map(r=>`<tr><td><b>${r.acreedor}</b></td><td class="text-right mono">${fmtUSD(r.capitalActual)}</td><td class="text-right mono">${fmtUSD(r.capitalInicial)}</td><td class="text-right mono">${r.cantidad}</td></tr>`).join('') || '<tr><td colspan="4"><div class="empty-state">Sin préstamos.</div></td></tr>'}
+          <tr class="total-row"><td>TOTAL</td><td class="text-right mono">${fmtUSD(total)}</td><td class="text-right mono">${fmtUSD(totalIni)}</td><td class="text-right mono">${rows.reduce((s,r)=>s+r.cantidad,0)}</td></tr>
+        </tbody></table>
+      </div>
+    </div>`;
+}
+function grupoMonedaRows(prestamos){
+  const map = {};
+  prestamos.forEach(p=>{
+    if(!map[p.acreedor]) map[p.acreedor] = { ves:0, usd:0 };
+    if(p.moneda==='VES') map[p.acreedor].ves += p.capitalActual; else map[p.acreedor].usd += p.capitalActual;
+  });
+  return Object.entries(map).map(([acreedor,v])=>({ acreedor, ves:v.ves, usd:v.usd, total:v.ves+v.usd })).sort((a,b)=>b.total-a.total);
+}
+function grupoDistribucionMonedaHtml(prestamos){
+  const rows = grupoMonedaRows(prestamos);
+  const totalVES = rows.reduce((s,r)=>s+r.ves,0);
+  const totalUSD = rows.reduce((s,r)=>s+r.usd,0);
+  return `
+    <div class="table-card">
+      <div class="panel-header-dark">${ic('dashboard')}<span>Distribución por Moneda</span></div>
+      <div class="import-hint" style="padding:8px 14px 0;">VES = préstamo indexado a Bolívares (saldo expresado en USD equivalente) · USD = préstamo en dólares puros.</div>
+      <div class="table-scroll">
+        <table><thead><tr><th>Acreedor</th><th class="text-right">VES-indexado</th><th class="text-right">USD puro</th><th class="text-right">Total</th></tr></thead>
+        <tbody>
+          ${rows.map(r=>`<tr><td><b>${r.acreedor}</b></td><td class="text-right mono">${fmtUSD(r.ves)}</td><td class="text-right mono">${fmtUSD(r.usd)}</td><td class="text-right mono"><b>${fmtUSD(r.total)}</b></td></tr>`).join('') || '<tr><td colspan="4"><div class="empty-state">Sin préstamos.</div></td></tr>'}
+          <tr class="total-row"><td>TOTAL</td><td class="text-right mono">${fmtUSD(totalVES)}</td><td class="text-right mono">${fmtUSD(totalUSD)}</td><td class="text-right mono">${fmtUSD(totalVES+totalUSD)}</td></tr>
+        </tbody></table>
+      </div>
+    </div>`;
+}
+function grupoIndicadoresHtml(prestamos, sel){
+  const totalCapital = prestamos.reduce((s,p)=>s+p.capitalActual,0);
+  const totalVES = prestamos.filter(p=>p.moneda==='VES').reduce((s,p)=>s+p.capitalActual,0);
+  const totalUSD = prestamos.filter(p=>p.moneda==='USD').reduce((s,p)=>s+p.capitalActual,0);
+  const pctVES = totalCapital ? totalVES/totalCapital*100 : 0;
+  const pctUSD = totalCapital ? totalUSD/totalCapital*100 : 0;
+  const tasaPonderada = totalCapital ? prestamos.reduce((s,p)=>s+p.tasa*p.capitalActual,0)/totalCapital*100 : 0;
+  const activos = prestamos.filter(p=>p.capitalActual>0 && p.fechaVencimiento).sort((a,b)=>a.fechaVencimiento.localeCompare(b.fechaVencimiento));
+  const prox = activos[0];
+  const vencidos = prestamos.filter(p=>p.estado.label==='Vencido').length;
+  const rows = [
+    ['% Deuda VES-indexada', pctVES.toFixed(1)+'%'],
+    ['% Deuda USD pura', pctUSD.toFixed(1)+'%'],
+    ['Tasa promedio ponderada', tasaPonderada.toFixed(2)+'%'],
+    ['Préstamos activos', prestamos.length],
+    ['Vencidos', vencidos],
+    ['Próximo vencimiento', prox ? (fmtDiasLabel(daysUntil(prox.fechaVencimiento))+' · '+prox.acreedor+' ('+prox.empresa+')') : 'Sin préstamos activos'],
+  ];
+  return `
+    <div class="table-card">
+      <div class="panel-header-dark">${ic('percent')}<span>Indicadores Financieros${sel==='TODAS'?' (Grupo)':' — '+sel}</span></div>
+      <div class="table-scroll" style="max-height:380px;">
+        <table class="kv-table"><tbody>
+          ${rows.map(([k,v])=>`<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`).join('')}
+        </tbody></table>
+      </div>
+    </div>`;
+}
+function grupoTendenciaTasasHtml(prestamos){
+  const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth()-6);
+  const map = {};
+  prestamos.forEach(p=>{ if(!p.tasa) return; if(!map[p.acreedor]) map[p.acreedor]=[]; map[p.acreedor].push(p); });
+  const avgTasa = arr => arr.length ? arr.reduce((s,p)=>s+p.tasa,0)/arr.length : null;
+  const rows = Object.entries(map).map(([acreedor,arr])=>{
+    const tasas = arr.map(p=>p.tasa);
+    const min = Math.min(...tasas), max = Math.max(...tasas);
+    const recientes = arr.filter(p=> p.fechaEmision && new Date(p.fechaEmision+'T00:00:00') >= cutoff);
+    const anteriores = arr.filter(p=> p.fechaEmision && new Date(p.fechaEmision+'T00:00:00') < cutoff);
+    const tasaReciente = avgTasa(recientes);
+    const tasaAnterior = avgTasa(anteriores);
+    let tendClass='badge-gray', tendIcon='—', tendLabel='Sin comparación', ref = tasaReciente!=null ? tasaReciente : tasaAnterior;
+    if(tasaReciente!=null && tasaAnterior!=null){
+      const delta = tasaReciente - tasaAnterior;
+      if(delta > 0.005){ tendClass='badge-red'; tendIcon='↑'; tendLabel='Subiendo'; }
+      else if(delta < -0.005){ tendClass='badge-green'; tendIcon='↓'; tendLabel='Bajando'; }
+      else { tendClass='badge-gray'; tendIcon='→'; tendLabel='Estable'; }
+    }
+    return { acreedor, min, max, ref, tendIcon, tendLabel, tendClass };
+  }).sort((a,b)=>(b.ref||0)-(a.ref||0));
+  return `
+    <div class="table-card">
+      <div class="panel-header-dark">${ic('percent')}<span>Tendencia de Tasas por Acreedor</span><div class="spacer"></div><span style="text-transform:none;font-weight:600;opacity:.8;">Prom. últimos 6 meses vs. anteriores</span></div>
+      <div class="table-scroll">
+        <table><thead><tr><th>Acreedor</th><th class="text-right">Tasa Mín.</th><th class="text-right">Prom. 6 meses</th><th class="text-right">Tasa Máx.</th><th>Tendencia</th></tr></thead>
+        <tbody>
+          ${rows.map(r=>`<tr><td><b>${r.acreedor}</b></td><td class="text-right mono">${(r.min*100).toFixed(2)}%</td><td class="text-right mono"><b>${r.ref!=null?(r.ref*100).toFixed(2)+'%':'—'}</b></td><td class="text-right mono">${(r.max*100).toFixed(2)}%</td><td><span class="badge ${r.tendClass}">${r.tendIcon} ${r.tendLabel}</span></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty-state">Sin préstamos.</div></td></tr>'}
+        </tbody></table>
+      </div>
+    </div>`;
 }
 function grupoBodyHtml(d, sel){
   const empresas = d.empresas || [];
@@ -1466,6 +1577,8 @@ function grupoBodyHtml(d, sel){
     </div>` : '';
   return `
     ${kpis}
+    <div class="panel-grid" style="margin:14px 0;">${grupoSaldosPorAcreedorHtml(prestamos)}${grupoDistribucionMonedaHtml(prestamos)}</div>
+    <div class="panel-grid" style="margin-bottom:14px;">${grupoIndicadoresHtml(prestamos, sel)}${grupoTendenciaTasasHtml(prestamos)}</div>
     ${desglose}
     <div class="table-card">
       <div class="panel-header-dark">${ic('bank')}<span>Préstamos ${esTodas?'(Todas las compañías)':'— '+sel}</span><div class="spacer"></div><span style="text-transform:none;font-weight:600;opacity:.8;">${d.fecha}</span></div>
