@@ -8,14 +8,18 @@ import { GoogleGenAI } from '@google/genai';
 import { getServerSession } from 'next-auth/next';
 import authOptions from './auth/[...nextauth]';
 import { getUserRecord } from '../../lib/backend';
-import { GEMINI_TOOLS, ejecutar } from '../../lib/botTools';
+import { GEMINI_TOOLS, ejecutar, snapshot } from '../../lib/botTools';
 
 export const config = { maxDuration: 60 };
 
-const MODELO = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+// Modelos gratis en orden de preferencia. Cada uno tiene su propio límite por minuto:
+// si uno está saturado (429/503) se pasa al siguiente.
+const MODELOS = [...new Set([process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+  'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'])];
+const saturado = err => err?.status === 429 || err?.status === 503;
 const MAX_VUELTAS = 8;
 
-function systemPrompt(user) {
+function systemPrompt(user, datos) {
   const hoy = new Date().toLocaleDateString('es-CR', { timeZone: 'America/Costa_Rica', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const iso = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Costa_Rica' });
   return `Eres Yeison Bot, el asistente de la app "Deuda Global" de Cofersa (tesorería). Hablas con ${user.nombre || user.email}, rol ${user.rol}.
@@ -27,12 +31,17 @@ Cómo trabajas:
 - Responde corto y directo, en español de Costa Rica. Usa listas con guiones y **negritas** para los totales. No uses tablas.
 - Para cambios de datos (registrar un pago, editar una línea, eliminar un pago, conciliar leasing) usa las herramientas proponer_*. Eso NO ejecuta nada: el usuario ve un botón para confirmar. Di "te dejé el cambio listo para confirmar", nunca que ya quedó hecho.
 - Antes de proponer, verifica con las consultas que la línea, la cuota o el pago existan. Si falta un dato (monto, fecha, cuál cuota), pregunta.
-${user.rol === 'Admin' ? '' : '- Este usuario tiene rol Consulta: solo puede consultar. Si pide un cambio, explícale que necesita rol Admin.\n'}- Si piden un cambio a la app misma (pantallas, columnas, gráficos, reportes nuevos), todavía no puedes hacerlo tú. Resume la solicitud en una frase clara para que Yeison la pase a desarrollo.`;
+${user.rol === 'Admin' ? '' : '- Este usuario tiene rol Consulta: solo puede consultar. Si pide un cambio, explícale que necesita rol Admin.\n'}- Si piden un cambio a la app misma (pantallas, columnas, gráficos, reportes nuevos), todavía no puedes hacerlo tú. Resume la solicitud en una frase clara para que Yeison la pase a desarrollo.
+- Abajo tienes los DATOS ACTUALES del Sheet (cuotas de los últimos 90 días y próximos 120, pagos de los últimos 90 días, líneas, leasing). Responde con ellos sin llamar herramientas siempre que alcancen. Usa las herramientas de consulta solo para fechas fuera de esos rangos, y las proponer_* para cambios.
+
+DATOS ACTUALES (JSON):
+${datos}`;
 }
 
 function mensajeError(err) {
   const s = err?.status;
-  if (s === 429) return 'Se alcanzó el límite gratis de consultas por ahora. Espera un minuto e intenta de nuevo.';
+  if (s === 429) return 'Se alcanzó el límite gratis de Gemini por este minuto. Espera un minuto e intenta de nuevo.';
+  if (s === 503) return 'Los modelos gratis de Gemini están saturados en este momento. Intenta en un par de minutos.';
   if (s === 400 || s === 403) return 'La API key de Gemini no es válida o no tiene acceso a este modelo.';
   return 'No pude responder. Intenta de nuevo.';
 }
@@ -52,12 +61,25 @@ export default async function handler(req, res) {
   if (!String(texto).trim()) return res.status(400).json({ error: 'Mensaje vacío.' });
 
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const system_instruction = systemPrompt(user);
   const ctx = { propuestas: [] };
-  const pedir = (input, previo) => ai.interactions.create({
-    model: MODELO, input, system_instruction, tools: GEMINI_TOOLS,
-    ...(previo ? { previous_interaction_id: previo } : {}),
-  });
+  let system_instruction;
+  try { system_instruction = systemPrompt(user, await snapshot(ctx)); }
+  catch (e) { console.error('[bot snapshot]', e); return res.status(200).json({ error: 'No pude leer el Sheet. Intenta de nuevo.' }); }
+  let modelo = 0; // una vez que un modelo responde, se sigue con ese en esta pregunta
+  const pedir = async (input, previo) => {
+    for (;;) {
+      try {
+        return await ai.interactions.create({
+          model: MODELOS[modelo], input, system_instruction, tools: GEMINI_TOOLS,
+          ...(previo ? { previous_interaction_id: previo } : {}),
+        });
+      } catch (err) {
+        if (!saturado(err) || modelo >= MODELOS.length - 1) throw err;
+        console.warn('[bot]', MODELOS[modelo], err.status, '-> probando', MODELOS[modelo + 1]);
+        modelo++;
+      }
+    }
+  };
 
   try {
     let input = String(texto).slice(0, 4000);
@@ -66,7 +88,7 @@ export default async function handler(req, res) {
       it = await pedir(input, interactionId);
     } catch (err) {
       // El hilo guardado vence (1 día en el plan gratis): se sigue en uno nuevo.
-      if (!interactionId || err?.status === 429) throw err;
+      if (!interactionId || saturado(err)) throw err;
       it = await pedir(input, null);
     }
 
