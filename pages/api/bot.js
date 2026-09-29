@@ -14,8 +14,9 @@ export const config = { maxDuration: 120 };
 
 // Modelos gratis en orden de preferencia. Cada uno tiene su propio límite por minuto:
 // si uno está saturado (429/503) se pasa al siguiente.
-const MODELOS = [...new Set([process.env.GEMINI_MODEL || 'gemini-3.8-flash',
-  'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'])];
+// gemini-3.8-flash va de último: en el plan gratis casi siempre responde 429.
+const MODELOS = [...new Set([process.env.GEMINI_MODEL || 'gemini-3.5-flash',
+  'gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.8-flash'])];
 // Sin reintentos internos del SDK (esperan el retry-after y agotan el tiempo de Vercel):
 // si un modelo no contesta rápido, se pasa al siguiente.
 const OPCIONES = { timeout: 25_000, maxRetries: 0 };
