@@ -1,4 +1,4 @@
-/* Yeison Bot — ventana de chat del asistente. Depende de callServer, reloadData, renderContent y toast de app.js. */
+/* Bot Cofersa — ventana de chat del asistente. Depende de callServer, reloadData, renderContent y toast de app.js. */
 (function () {
   const css = `
 .yb-fab{position:fixed;right:20px;bottom:20px;width:60px;height:60px;border-radius:50%;border:3px solid #fff;padding:0;cursor:pointer;
@@ -54,11 +54,11 @@
   let ocupado = false;
 
   const fab = document.createElement('button');
-  fab.className = 'yb-fab'; fab.title = 'Yeison Bot'; fab.setAttribute('aria-label', 'Abrir Yeison Bot');
+  fab.className = 'yb-fab'; fab.title = 'Bot Cofersa'; fab.setAttribute('aria-label', 'Abrir Bot Cofersa');
   const panel = document.createElement('section');
-  panel.className = 'yb-panel'; panel.hidden = true; panel.setAttribute('aria-label', 'Yeison Bot');
+  panel.className = 'yb-panel'; panel.hidden = true; panel.setAttribute('aria-label', 'Bot Cofersa');
   panel.innerHTML = `
-    <div class="yb-head"><img src="/bot-face.png" alt=""><div><b>Yeison Bot</b><small>Deuda Global · asistente</small></div>
+    <div class="yb-head"><img src="/bot-face.png" alt=""><div><b>Bot Cofersa</b><small>Deuda Global · asistente</small></div>
       <span class="yb-sp"></span>
       <button class="yb-icon" id="ybVoz" title="Leer respuestas en voz alta" aria-pressed="${voz}">Voz</button>
       <button class="yb-icon" id="ybNuevo" title="Nueva conversación">Nueva</button>
@@ -188,7 +188,7 @@
   $('ybNuevo').onclick = () => { hist = { interactionId: null, vista: [] }; notas = []; guardar(); pintar(); };
   $('ybVoz').onclick = e => { voz = !voz; e.currentTarget.setAttribute('aria-pressed', voz); $('ybVozBar').hidden = !voz; try { localStorage.setItem('yb-voz', voz ? '1' : '0'); } catch (x) {} if (voz) llenarVoces(); else if (window.speechSynthesis) speechSynthesis.cancel(); };
   $('ybVozSel').onchange = e => { try { localStorage.setItem('yb-voz-nombre', e.target.value); } catch (x) {} };
-  $('ybVozProbar').onclick = () => { const was = voz; voz = true; hablar('Hola, soy Yeison Bot. Así sueno.'); voz = was; };
+  $('ybVozProbar').onclick = () => { const was = voz; voz = true; hablar('Hola, soy Bot Cofersa. Así sueno.'); voz = was; };
   $('ybVozBar').hidden = !voz; llenarVoces();
   $('ybForm').onsubmit = e => { e.preventDefault(); const t = $('ybTxt'); enviar(t.value); t.value = ''; };
   $('ybTxt').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('ybForm').requestSubmit(); } });

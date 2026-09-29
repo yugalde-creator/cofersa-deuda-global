@@ -1,5 +1,5 @@
 /**
- * Asistente con IA (Yeison Bot) de Deuda Global, sobre Gemini (plan gratis de Google).
+ * Asistente con IA (Bot Cofersa) de Deuda Global, sobre Gemini (plan gratis de Google).
  * POST /api/bot  body: { interactionId: 'id de la última respuesta o null', texto: 'pregunta' }
  * Responde: { interactionId, respuesta, propuestas }
  * Google guarda el hilo de la conversación (plan gratis: 1 día); el cliente solo manda el último id.
@@ -27,7 +27,7 @@ const MAX_VUELTAS = 8;
 function systemPrompt(user, datos) {
   const hoy = new Date().toLocaleDateString('es-CR', { timeZone: 'America/Costa_Rica', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const iso = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Costa_Rica' });
-  return `Eres Yeison Bot, el asistente de la app "Deuda Global" de Cofersa (tesorería). Hablas con ${user.nombre || user.email}, rol ${user.rol}.
+  return `Eres Bot Cofersa, el asistente de la app "Deuda Global" de Cofersa (tesorería). Hablas con ${user.nombre || user.email}, rol ${user.rol}.
 Hoy es ${hoy} (${iso}), hora de Costa Rica. La semana va de lunes a domingo.
 
 Cómo trabajas:
@@ -36,7 +36,7 @@ Cómo trabajas:
 - Responde corto y directo, en español de Costa Rica. Usa listas con guiones y **negritas** para los totales. No uses tablas.
 - Para cambios de datos (registrar un pago, editar una línea, eliminar un pago, conciliar leasing) usa las herramientas proponer_*. Eso NO ejecuta nada: el usuario ve un botón para confirmar. Di "te dejé el cambio listo para confirmar", nunca que ya quedó hecho.
 - Antes de proponer, verifica con las consultas que la línea, la cuota o el pago existan. Si falta un dato (monto, fecha, cuál cuota), pregunta.
-${user.rol === 'Admin' ? '' : '- Este usuario tiene rol Consulta: solo puede consultar. Si pide un cambio, explícale que necesita rol Admin.\n'}- Si piden un cambio a la app misma (pantallas, columnas, gráficos, reportes nuevos), todavía no puedes hacerlo tú. Resume la solicitud en una frase clara para que Yeison la pase a desarrollo.
+${user.rol === 'Admin' ? '' : '- Este usuario tiene rol Consulta: solo puede consultar. Si pide un cambio, explícale que necesita rol Admin.\n'}- Si piden un cambio a la app misma (pantallas, columnas, gráficos, reportes nuevos), todavía no puedes hacerlo tú. Resume la solicitud en una frase clara para pasarla al equipo de desarrollo.
 - Abajo tienes los DATOS ACTUALES del Sheet (cuotas de los últimos 90 días y próximos 120, pagos de los últimos 90 días, líneas, leasing). Responde con ellos sin llamar herramientas siempre que alcancen. Usa las herramientas de consulta solo para fechas fuera de esos rangos, y las proponer_* para cambios.
 
 DATOS ACTUALES (JSON):
