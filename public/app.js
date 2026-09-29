@@ -69,6 +69,7 @@ let leasingPagos = {};
 let usuarios = [];
 let auditLog = [];
 let historicoDeuda = {};
+let historicoTC = {};
 
 function daysUntil(dateStr){
   if(!dateStr) return null;
@@ -192,7 +193,7 @@ function applyBootstrap(data){
   state.sheetUrl = data.sheetUrl; state.empresa = data.empresa;
   lines = data.lines; paymentPlans = data.paymentPlans; lineasCanceladas = data.lineasCanceladas; history = data.history;
   leasingContratos = data.leasingContratos; leasingPagos = data.leasingPagos; usuarios = data.usuarios; auditLog = data.auditLog;
-  bankLimits = data.bankLimits; FX = data.fx; historicoDeuda = data.historicoDeuda||{};
+  bankLimits = data.bankLimits; FX = data.fx; historicoDeuda = data.historicoDeuda||{}; historicoTC = data.historicoTC||{};
 }
 function reloadData(cb, hintEmail){
   fetch('/api/action', {
@@ -1155,13 +1156,48 @@ function proyeccionesHtml(){
   </div>`;
                                                                             }
                                                                             function tendenciaDeudaPeriods(gran){ const periods = []; const now = new Date(); now.setHours(0,0,0,0); if(gran==='anio'){ const curYear = now.getFullYear(); for(let y=curYear-4; y<=curYear; y++){ const start = new Date(y,0,1); const end = (y===curYear) ? now : new Date(y,11,31); periods.push({ label: String(y), start, end }); } } else { const base = new Date(now.getFullYear(), now.getMonth(), 1); for(let i=11;i>=0;i--){ const d = new Date(base.getFullYear(), base.getMonth()-i, 1); const end = new Date(d.getFullYear(), d.getMonth()+1, 0); periods.push({ label: end.toISOString().slice(0,7), start: d, end }); } } return periods; }
-                                                                            function tendenciaDeudaRows(gran){ const now = new Date(); now.setHours(0,0,0,0); const curPeriodo = now.toISOString().slice(0,7); const periods = tendenciaDeudaPeriods(gran||'mes'); return periods.map(p=>{ if(gran!=='anio' && historicoDeuda[p.label] && p.label < curPeriodo){ return { periodo: p.label, totalUSD: historicoDeuda[p.label], esReal: true }; } if(p.end >= now){ const totalUSD = lines.reduce((s,l)=>s+toUSD(lineaSaldoActual(l), l.moneda),0) + leasingContratos.reduce((s,l)=>s+toUSD(leasingSaldoActual(l), l.moneda),0); return { periodo: p.label, totalUSD, esReal: false }; } const cutoff = new Date(p.end); let totalUSD = 0; lines.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const plan = paymentPlans[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.aprobado||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); lineasCanceladas.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); const fin = new Date(l.vencimiento+'T00:00:00'); if(inicio > cutoff) return; if(fin <= cutoff) return; const pagadoHasta = history.filter(h=>h.linea===l.id && new Date(h.fecha+'T00:00:00') <= cutoff).reduce((s,h)=>s+h.monto,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); leasingContratos.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const fin = new Date(l.vencimiento+'T00:00:00'); if(fin <= cutoff) return; const plan = leasingPagos[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); return { periodo: p.label, totalUSD, esReal: false }; }); }
-                                                                            function tendenciaDeudaHtml(){
+                                                                            function tendenciaDeudaRows(gran){ const now = new Date(); now.setHours(0,0,0,0); const curPeriodo = now.toISOString().slice(0,7); const periods = tendenciaDeudaPeriods(gran||'mes'); return periods.map(p=>{ if(gran!=='anio' && historicoDeuda[p.label] && p.label < curPeriodo){ return { periodo: p.label, totalUSD: historicoDeuda[p.label], tc: historicoTC[p.label], esReal: true }; } if(p.end >= now){ const totalUSD = lines.reduce((s,l)=>s+toUSD(lineaSaldoActual(l), l.moneda),0) + leasingContratos.reduce((s,l)=>s+toUSD(leasingSaldoActual(l), l.moneda),0); return { periodo: p.label, totalUSD, esReal: false }; } const cutoff = new Date(p.end); let totalUSD = 0; lines.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const plan = paymentPlans[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.aprobado||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); lineasCanceladas.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); const fin = new Date(l.vencimiento+'T00:00:00'); if(inicio > cutoff) return; if(fin <= cutoff) return; const pagadoHasta = history.filter(h=>h.linea===l.id && new Date(h.fecha+'T00:00:00') <= cutoff).reduce((s,h)=>s+h.monto,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); leasingContratos.forEach(l=>{ const inicio = new Date(l.inicio+'T00:00:00'); if(inicio > cutoff) return; const fin = new Date(l.vencimiento+'T00:00:00'); if(fin <= cutoff) return; const plan = leasingPagos[l.id]||[]; const pagadoHasta = plan.filter(x=> (x.estado==='Pagado'||x.estado==='Conciliado') && new Date(x.fecha+'T00:00:00') <= cutoff).reduce((s,x)=>s+x.capital,0); const saldo = Math.max((l.monto||0) - pagadoHasta, 0); totalUSD += toUSD(saldo, l.moneda); }); return { periodo: p.label, totalUSD, esReal: false }; }); }
+                                                                            function fmtTendencia(r){
+  // Meses cerrados en colones: usar el tipo de cambio del balance de ese mes, no el de hoy.
+  if(state.currency==='CRC' && r.tc) return SYM.CRC + (r.totalUSD*r.tc).toLocaleString('es-CR', {maximumFractionDigits: 0});
+  return fmtUSD(r.totalUSD);
+}
+// Lee el reporte "CR FER DB M aaaa-mm (C$) (U$).xlsx": fila "Total" y fila de tipo de cambio de la hoja en US$.
+function parseBeconsult(wb){
+  const name = wb.SheetNames.find(n=>/^CR DB M/i.test(n) && n.includes('($)'));
+  if(!name) throw new Error('No se encontró la hoja "CR DB M ... ($)" en el archivo.');
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, raw:true, defval:null});
+  let ini = null;
+  rows.some(r=>r.some(c=>{ const m = String(c||'').match(/(\d{2})-(\d{4})\s*\/\s*(\d{2})-(\d{4})/); if(m){ ini = {m:+m[1], y:+m[2]}; } return !!m; }));
+  if(!ini) throw new Error('No se encontró el período (ej. 09-2025/ 08-2026) en el encabezado.');
+  const iTotal = rows.findIndex(r=>String(r[1]||'').trim().toLowerCase()==='total');
+  if(iTotal<0) throw new Error('No se encontró la fila "Total".');
+  const total = rows[iTotal], tc = rows[iTotal+1] || [];
+  const out = [];
+  for(let k=0;k<12;k++){
+    const d = new Date(ini.y, ini.m-1+k, 1);
+    const monto = Number(total[2+2*k]);
+    if(!(monto>0)) continue;
+    out.push({ periodo: d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'), montoUSD: Math.round(monto*100)/100, tc: Number(tc[2+2*k])>0 ? Number(tc[2+2*k]) : null });
+  }
+  return out;
+}
+async function cargarBeconsult(file){
+  try{
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const wb = XLSX.read(await file.arrayBuffer(), {type:'array'});
+    const filas = parseBeconsult(wb);
+    const resumen = filas.map(f=>`${f.periodo}: $${f.montoUSD.toLocaleString('en-US',{minimumFractionDigits:2})}${f.tc?`  (TC ${f.tc})`:''}`).join('\n');
+    if(!confirm(`Se cargarán ${filas.length} meses en el Histórico de Deuda:\n\n${resumen}\n\n¿Continuar?`)) return;
+    callServer('importarHistoricoDeuda', [filas], res=>{ reloadData(()=>{ renderContent(); toast(`Histórico actualizado: ${res.actualizados} meses actualizados, ${res.agregados} nuevos.`); }); });
+  }catch(err){ toast(err.message || 'No se pudo leer el archivo.', true); }
+}
+function tendenciaDeudaHtml(){
                                                                                                                                                                                                           const gran = state.deudaGranularidad || 'mes';
                                                                                                                                                                                                             const rows = tendenciaDeudaRows(gran);
                                                                                                                                                                                                                 return `
                                                                                                                                                                                                                         <div class="table-card">
-                                                                                                                                                                                                                        <div class="panel-header-dark">${ic('trending')}<span>Tendencia de Deuda Total</span><div class="spacer"></div>
+                                                                                                                                                                                                                        <div class="panel-header-dark">${ic('trending')}<span>Tendencia de Deuda Total</span><div class="spacer"></div>${isReadOnly()?'':`<button class="btn" id="beconsultBtn" style="margin:0 8px 0 0;" title="Carga los totales mensuales del reporte de deuda Beconsult (hoja CR DB M ($))">${ic('upload')} Cargar balance Beconsult</button><input type="file" id="beconsultFile" accept=".xlsx,.xls" style="display:none">`}
                                                                                                                                                                                                                               <select class="tb-select" id="deudaGranSel" style="min-width:140px;margin:0;">
                                                                                                                                                                                                                                           <option value="mes" ${gran==='mes'?'selected':''}>Vista Mensual</option>
                                                                                                                                                                                                                                                     <option value="anio" ${gran==='anio'?'selected':''}>Vista Anual</option>
@@ -1170,7 +1206,7 @@ function proyeccionesHtml(){
                                                                                                                                                                                                                                                                         <div class="table-scroll" style="max-height:260px;overflow-x:auto;">
                                                                                                                                                                                                                                                                                 <table>
                                                                                                                                                                                                                                                                                           <thead><tr><th style="min-width:180px;">Concepto</th>${rows.map(r=>`<th class="text-right">${r.periodo}</th>`).join('')}</tr></thead>
-                                                                                                                                                                                                                                                                                                    <tbody><tr><td><b>Saldo Total de Deuda (${state.currency})</b></td>${rows.map(r=>`<td class="text-right mono">${fmtUSD(r.totalUSD)}</td>`).join('') || `<td><div class="empty-state">Sin datos.</div></td>`}</tr></tbody>
+                                                                                                                                                                                                                                                                                                    <tbody><tr><td><b>Saldo Total de Deuda (${state.currency})</b></td>${rows.map(r=>`<td class="text-right mono">${fmtTendencia(r)}</td>`).join('') || `<td><div class="empty-state">Sin datos.</div></td>`}</tr></tbody>
                                                                                                                                                                                                                                                                                                                   </table>
                                                                                                                                                                                                                                                                                                                   </div>
                                                                                                                                                                                                                                                                                                                       </div>`;
@@ -1862,6 +1898,8 @@ function bindContentEvents(){
   if(state.activeModule==='dashboard'){
   const gsel = document.getElementById('deudaGranSel');
   if(gsel) gsel.addEventListener('change', e=>{ state.deudaGranularidad = e.target.value; renderContent(); });
+  const bBtn = document.getElementById('beconsultBtn'), bFile = document.getElementById('beconsultFile');
+  if(bBtn && bFile){ bBtn.addEventListener('click', ()=>bFile.click()); bFile.addEventListener('change', e=>{ const f=e.target.files[0]; e.target.value=''; if(f) cargarBeconsult(f); }); }
   const psel = document.getElementById('panelEmpresaSel');
   if(psel) psel.addEventListener('change', e=>{ state.panelEmpresa = e.target.value; renderContent(); });
   }
