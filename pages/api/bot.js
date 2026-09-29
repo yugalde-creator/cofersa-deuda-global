@@ -10,13 +10,17 @@ import authOptions from './auth/[...nextauth]';
 import { getUserRecord } from '../../lib/backend';
 import { GEMINI_TOOLS, ejecutar, snapshot } from '../../lib/botTools';
 
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 120 };
 
 // Modelos gratis en orden de preferencia. Cada uno tiene su propio límite por minuto:
 // si uno está saturado (429/503) se pasa al siguiente.
 const MODELOS = [...new Set([process.env.GEMINI_MODEL || 'gemini-3.8-flash',
   'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'])];
-const saturado = err => err?.status === 429 || err?.status === 503;
+// Sin reintentos internos del SDK (esperan el retry-after y agotan el tiempo de Vercel):
+// si un modelo no contesta rápido, se pasa al siguiente.
+const OPCIONES = { timeout: 25_000, maxRetries: 0 };
+const saturado = err => [429, 500, 503, 504].includes(err?.status)
+  || /timeout|aborted/i.test(`${err?.name} ${err?.message}`);
 const MAX_VUELTAS = 8;
 
 function systemPrompt(user, datos) {
@@ -41,7 +45,7 @@ ${datos}`;
 function mensajeError(err) {
   const s = err?.status;
   if (s === 429) return 'Se alcanzó el límite gratis de Gemini por este minuto. Espera un minuto e intenta de nuevo.';
-  if (s === 503) return 'Los modelos gratis de Gemini están saturados en este momento. Intenta en un par de minutos.';
+  if (s === 503 || /timeout/i.test(String(err?.name))) return 'Los modelos gratis de Gemini están saturados en este momento. Intenta en un par de minutos.';
   if (s === 400 || s === 403) return 'La API key de Gemini no es válida o no tiene acceso a este modelo.';
   return 'No pude responder. Intenta de nuevo.';
 }
@@ -72,10 +76,12 @@ export default async function handler(req, res) {
         return await ai.interactions.create({
           model: MODELOS[modelo], input, system_instruction, tools: GEMINI_TOOLS,
           ...(previo ? { previous_interaction_id: previo } : {}),
-        });
+          // Para leer datos basta pensar poco; los modelos 2.5 no aceptan thinking_level.
+          ...(MODELOS[modelo].startsWith('gemini-3') ? { generation_config: { thinking_level: 'low' } } : {}),
+        }, OPCIONES);
       } catch (err) {
         if (!saturado(err) || modelo >= MODELOS.length - 1) throw err;
-        console.warn('[bot]', MODELOS[modelo], err.status, '-> probando', MODELOS[modelo + 1]);
+        console.warn('[bot]', MODELOS[modelo], err.status || err.name, '-> probando', MODELOS[modelo + 1]);
         modelo++;
       }
     }
