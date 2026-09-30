@@ -211,6 +211,7 @@ tbody tr:hover{background:var(--accent-light);}
       </div>
       <div id="modal-root"></div>
       <div className="toast-wrap" id="toastWrap"></div>
+      <script src="/planes.js" defer></script>
       <script src="/app.js" defer></script>
       <script src="/bot.js" defer></script>
     </>

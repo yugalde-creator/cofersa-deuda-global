@@ -141,6 +141,8 @@ let state = {
   panelEmpresa: 'COFERSA',
 };
 
+// Número de operación para mostrar (nunca el ID interno LC/LX/LS).
+function opLinea(id){ const l = lines.find(x=>x.id===id) || lineasCanceladas.find(x=>x.id===id || x.idOriginal===id) || leasingContratos.find(x=>x.id===id); return l ? { numOp: l.numOp||'—', moneda: l.moneda } : { numOp: '—', moneda: 'USD' }; }
 function toUSD(amount, cur){ return cur==='USD' ? amount : amount / FX[cur]; }
 function fmtUSD(amountUSD){
   const val = amountUSD * FX[state.currency];
@@ -193,7 +195,7 @@ function applyBootstrap(data){
   state.sheetUrl = data.sheetUrl; state.empresa = data.empresa;
   lines = data.lines; paymentPlans = data.paymentPlans; lineasCanceladas = data.lineasCanceladas; history = data.history;
   leasingContratos = data.leasingContratos; leasingPagos = data.leasingPagos; usuarios = data.usuarios; auditLog = data.auditLog;
-  bankLimits = data.bankLimits; FX = data.fx; historicoDeuda = data.historicoDeuda||{}; historicoTC = data.historicoTC||{};
+  bankLimits = data.bankLimits; FX = data.fx; historicoDeuda = data.historicoDeuda||{}; historicoTC = data.historicoTC||{}; cargarPlanesAdjuntos();
 }
 function reloadData(cb, hintEmail){
   fetch('/api/action', {
@@ -581,8 +583,8 @@ function pagosUltimoMesHtml(){
     <div class="table-card">
       <div class="panel-header-dark">${ic('cash')}<span>Pagos del Último Mes</span><div class="spacer"></div><span style="text-transform:none;font-weight:600;opacity:.8;">${pagos.length} pagos</span></div>
       <div class="table-scroll" style="max-height:380px;">
-        <table><thead><tr><th>ID Pago</th><th>Línea</th><th>Banco</th><th>Fecha</th><th class="text-right">Monto</th><th>Estado</th></tr></thead>
-        <tbody>${pagos.map(h=>{ const line=lines.find(l=>l.id===h.linea); const cur=line?line.moneda:'USD'; return `<tr><td><b>${h.id}</b></td><td>${line?.numOp||h.linea}</td><td>${h.banco}</td><td>${h.fecha}</td><td class="text-right mono">${fmtNative(h.monto,cur)}</td><td><span class="badge ${h.estado==='Conciliado'?'badge-green':'badge-amber'}">${h.estado}</span></td></tr>`; }).join('') || '<tr><td colspan="6"><div class="empty-state">Sin pagos en el último mes.</div></td></tr>'}</tbody></table>
+        <table><thead><tr><th>N° Operación</th><th>Banco</th><th>Fecha</th><th class="text-right">Monto</th><th>Estado</th></tr></thead>
+        <tbody>${pagos.map(h=>{ const op=opLinea(h.linea); const cur=op.moneda; return `<tr><td><b>${op.numOp}</b></td><td>${h.banco}</td><td>${h.fecha}</td><td class="text-right mono">${fmtNative(h.monto,cur)}</td><td><span class="badge ${h.estado==='Conciliado'?'badge-green':'badge-amber'}">${h.estado}</span></td></tr>`; }).join('') || '<tr><td colspan="5"><div class="empty-state">Sin pagos en el último mes.</div></td></tr>'}</tbody></table>
       </div>
     </div>`;
 }
@@ -646,6 +648,7 @@ function linesHtml(){
         <select class="tb-select" id="lineEstadoSel"><option value="">${ic('filter')} Todos los estados</option>${['Activa','Vencida','Cancelada'].map(s=>`<option value="${s}" ${state.lineEstadoFilter===s?'selected':''}>${s}</option>`).join('')}</select>
         <div class="spacer"></div>
         <button class="btn" id="exportLinesBtn">${ic('download')} Exportar</button>
+        <button class="btn" id="adjPlanesBtn" ${ro?'disabled title="Requiere rol Administrador"':''}>${ic('upload')} Adjuntar planes del banco</button>
         <button class="btn btn-primary" id="newLineBtn" ${ro?'disabled title="Requiere rol Administrador"':''}>${ic('plus')} Nueva Línea</button>
       </div>
       <div class="table-scroll">
@@ -704,7 +707,7 @@ function opsHtml(){
                                                                                                                                                                     <thead><tr><th>Línea</th><th>Fecha</th><th class="text-right">Capital</th><th class="text-right">Interés</th><th>Estado</th></tr></thead>
                                                                                                                                                                                 <tbody>
                                                                                                                                                                                               ${planEntries.map(({lid,p})=>{ const line=lines.find(l=>l.id===lid); const cur=line?line.moneda:'USD'; return `
-                                                                                                                                                                                                              <tr><td><b>${line?.numOp||lid}</b></td><td>${p.fecha}</td><td class="text-right mono">${fmtNative(p.capital,cur)}</td><td class="text-right mono">${fmtNative(p.interes,cur)}</td>
+                                                                                                                                                                                                              <tr><td><b>${line?.numOp||opLinea(lid).numOp}</b></td><td>${p.fecha}</td><td class="text-right mono">${fmtNative(p.capital,cur)}</td><td class="text-right mono">${fmtNative(p.interes,cur)}</td>
                                                                                                                                                                                                                               <td><span class="badge ${p.estado==='Pagado'?'badge-green':'badge-amber'}">${p.estado}</span></td></tr>`; }).join('') || '<tr><td colspan="5"><div class="empty-state">Sin planes de pago que coincidan con el filtro.</div></td></tr>'}
                                                                                                                                                                                                                                           </tbody>
                                                                                                                                                                                                                                                     </table>
@@ -722,8 +725,8 @@ function opsHtml(){
                 </div>
                 <div class="table-scroll" style="max-height:400px;">
                   <table>
-                    <thead><tr><th>ID Pago</th><th>Línea</th><th>Banco</th><th>Fecha</th><th class="text-right">Monto</th><th>Estado</th></tr></thead>
-                    <tbody>${rows.map(h=>{ const line=lines.find(l=>l.id===h.linea); const cur=line?line.moneda:'USD'; return `<tr><td><b>${h.id}</b></td><td>${line?.numOp||h.linea}</td><td>${h.banco}</td><td>${h.fecha}</td><td class="text-right mono">${fmtNative(h.monto,cur)}</td><td><span class="badge ${h.estado==='Conciliado'?'badge-green':'badge-amber'}">${h.estado}</span></td></tr>`; }).join('') || '<tr><td colspan="6"><div class="empty-state">Sin pagos registrados.</div></td></tr>'}</tbody>
+                    <thead><tr><th>N° Operación</th><th>Banco</th><th>Fecha</th><th class="text-right">Monto</th><th>Estado</th></tr></thead>
+                    <tbody>${rows.map(h=>{ const op=opLinea(h.linea); const cur=op.moneda; return `<tr><td><b>${op.numOp}</b></td><td>${h.banco}</td><td>${h.fecha}</td><td class="text-right mono">${fmtNative(h.monto,cur)}</td><td><span class="badge ${h.estado==='Conciliado'?'badge-green':'badge-amber'}">${h.estado}</span></td></tr>`; }).join('') || '<tr><td colspan="5"><div class="empty-state">Sin pagos registrados.</div></td></tr>'}</tbody>
                   </table>
                 </div>
               </div>
@@ -759,6 +762,17 @@ function openNewLineScheduleModal(){
         <div class="form-field"><label>Plazo (meses)</label><input type="number" id="s_plazo" placeholder="12" value="12"></div>
         <div class="form-field"><label>Fecha 1° Pago</label><input type="date" id="s_primerpago"></div>
       </div>
+      <div class="form-grid" id="calcParams" style="margin-top:8px;">
+        <div class="form-field"><label>Tipo de amortización</label><select id="s_metodo">
+          <option value="auto">Según el banco (BAC, Davivienda, BCT, BCR)</option>
+          <option value="cuota_exacta">Cuota fija (días reales)</option>
+          <option value="cuota_bac">Cuota fija estilo BAC (tasa×365/360)</option>
+          <option value="capital_fijo">Capital fijo + intereses (estilo BCR)</option>
+          <option value="bullet">Solo intereses, capital al vencimiento</option></select></div>
+        <div class="form-field"><label>Meses solo intereses (gracia de capital)</label><input type="number" id="s_gracia" min="0" value="0"></div>
+        <div class="form-field"><label>Base de días</label><select id="s_base"><option value="360">Días reales / 360</option><option value="365">Días reales / 365</option></select></div>
+        <div class="form-field"><label>Fecha de pago en día hábil</label><select id="s_habil"><option value="">Según el banco</option><option value="1">Sí (lunes si cae fin de semana)</option><option value="0">No</option></select></div>
+      </div>
       <div style="margin-top:14px;display:flex;gap:8px;align-items:center;">
         <button class="btn" id="modeCalcBtn" style="font-weight:700;">${ic('percent')} Calcular automáticamente</button>
         <button class="btn" id="modeBancoBtn">${ic('upload')} Cargar tabla del banco</button>
@@ -781,6 +795,7 @@ function openNewLineScheduleModal(){
     <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="saveScheduleBtn" disabled>${ic('plus')} Guardar Línea y Plan de Pagos</button></div>`);
 
   let scheduleData = null;
+  let _planFile = null; // archivo del banco para adjuntar a la operación al guardar
   let _mode = 'calc'; // 'calc' | 'banco'
 
   function setMode(m){
@@ -800,40 +815,21 @@ function openNewLineScheduleModal(){
     document.getElementById('s_banco_file').click();
   });
   document.getElementById('s_banco_file').addEventListener('change', async e=>{
-    const file=e.target.files[0]; if(!file) return;
+    const file=e.target.files[0]; e.target.value=''; if(!file) return;
     const status=document.getElementById('bancoFileStatus');
     status.textContent='Procesando…';
     try{
-      const ext=file.name.split('.').pop().toLowerCase();
-      if(ext==='csv'||ext==='txt'){
-        document.getElementById('s_banco_csv').value=await file.text();
-        status.textContent='✓ CSV cargado';
-      } else if(ext==='xlsx'||ext==='xls'){
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-        const wb=XLSX.read(new Uint8Array(await file.arrayBuffer()),{type:'array',raw:false});
-        const csv=excelRowsToCSV(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:''}));
-        if(!csv){toast('No se detectaron columnas fecha/capital/interés en el Excel.',true);status.textContent='Sin datos';return;}
-        document.getElementById('s_banco_csv').value=csv;
-        const n=csv.split('\n').length;
-        status.textContent=`✓ Excel: ${n} cuota(s)`;
-        toast(`Excel procesado: ${n} cuotas.`);
-      } else if(ext==='pdf'){
-        const csv=await parsePdfToCSV(file,t=>{ status.textContent=t; });
-        if(!csv){toast('No se encontraron filas de pagos en el PDF. Intente con CSV.',true);status.textContent='Sin datos';return;}
-        document.getElementById('s_banco_csv').value=csv;
-        const n=csv.split('\n').filter(Boolean).length;
-        status.textContent=`✓ PDF: ${n} cuota(s)`;
-        toast(`PDF procesado: ${n} cuotas encontradas.`);
-      } else {
-        toast('Use PDF, Excel (.xlsx/.xls) o CSV.',true);
-        status.textContent='';
-      }
+      const r = await leerTablaBanco(file, document.getElementById('s_banco').value, t=>{ status.textContent=t; });
+      if(!r.filas.length){ toast('No se encontraron cuotas en el archivo. Pegue la tabla en CSV o calcule el plan.',true); status.textContent='Sin datos'; return; }
+      _planFile = file;
+      document.getElementById('s_banco_csv').value = filasACSV(r.filas);
+      status.textContent = `✓ ${r.fuente}: ${r.filas.length} cuota(s)`;
+      document.getElementById('previewBancoBtn').click();
     } catch(err){
       console.error('[FileUpload]',err);
       toast('Error al procesar el archivo: '+err.message,true);
       status.textContent='Error';
     }
-    e.target.value='';
   });
 
   document.getElementById('calcScheduleBtn').addEventListener('click', ()=>{
@@ -849,10 +845,15 @@ function openNewLineScheduleModal(){
     if(monto<=0){ toast('Ingresa un monto válido.', true); return; }
     if(plazo<=0 || plazo>360){ toast('El plazo debe estar entre 1 y 360 meses.', true); return; }
     if(!primerPago || !desembolso){ toast('Completa las fechas de desembolso y primer pago.', true); return; }
-    scheduleData = calcularAmortizacion(monto, tasa, plazo, primerPago);
+    const calc = PlanesBanco.calcular({ monto, tasa, plazo, desembolso, primerPago, banco,
+      metodo: document.getElementById('s_metodo').value, gracia: parseInt(document.getElementById('s_gracia').value)||0,
+      base: parseInt(document.getElementById('s_base').value)||360,
+      habil: document.getElementById('s_habil').value==='' ? null : document.getElementById('s_habil').value==='1' });
+    // Se guarda la tabla calculada tal cual (días reales), no la fórmula simplificada del servidor.
+    scheduleData = { filas: calc.filas, cuota: calc.cuota, filasTabla: calc.filas.map(f=>({fecha:f.fecha,capital:f.capital,interes:f.interes})), vencimiento: calc.vencimiento };
     scheduleData.banco = banco; scheduleData.numOp = numOp; scheduleData.monto = monto; scheduleData.moneda = moneda; scheduleData.tasa = tasa; scheduleData.plazo = plazo; scheduleData.desembolso = desembolso; scheduleData.primerPago = primerPago;
     const fls = scheduleData.filas || [];
-    document.getElementById('scheduleResult').innerHTML = `<div class="table-scroll" style="max-height:320px;"><table><thead><tr><th>Mes</th><th>Fecha</th><th class="text-right">Capital</th><th class="text-right">Interés</th><th class="text-right">Cuota</th><th class="text-right">Saldo</th></tr></thead><tbody>${fls.map((r,i)=>`<tr><td>${i+1}</td><td>${r.fecha}</td><td class="text-right mono">${fmtNative(r.capital,moneda)}</td><td class="text-right mono">${fmtNative(r.interes,moneda)}</td><td class="text-right mono">${fmtNative(r.cuota,moneda)}</td><td class="text-right mono">${fmtNative(r.saldo||0,moneda)}</td></tr>`).join('') || '<tr><td colspan="6">Sin datos.</td></tr>'}</tbody></table></div>`;
+    document.getElementById('scheduleResult').innerHTML = `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">Método: <b>${({cuota_exacta:'Cuota fija, intereses por días reales',cuota_bac:'Cuota fija estilo BAC',capital_fijo:'Capital fijo + intereses',bullet:'Capital al vencimiento'})[calc.metodo]}</b>${calc.cuota?` · cuota ${fmtOp(calc.cuota,moneda)}`:''} · intereses totales ${fmtOp(calc.totalInteres,moneda)}</div>${tablaPlanHtml(fls, moneda)}`;
     document.getElementById('saveScheduleBtn').disabled = false;
   });
 
@@ -867,13 +868,13 @@ function openNewLineScheduleModal(){
     if(!desembolso){ toast('Ingresa la fecha de desembolso.', true); return; }
     const raw = document.getElementById('s_banco_csv').value.trim();
     if(!raw){ toast('Pega la tabla del banco en formato CSV.', true); return; }
-    const filas = parseCSV(raw).filter(r=>r.length>=3).map((r,i)=>({ n:i+1, fecha:r[0].trim(), capital:Number(r[1])||0, interes:Number(r[2])||0 }));
+    const filas = csvAFilas(raw).map((r,i)=>({ n:i+1, ...r }));
     if(!filas.length){ toast('No se encontraron filas válidas. Formato: fecha,capital,interes', true); return; }
     const vencimiento = filas[filas.length-1].fecha;
     scheduleData = { banco, numOp, monto: monto||filas.reduce((s,f)=>s+f.capital,0), moneda, tasa, plazo: filas.length, desembolso, primerPago: filas[0].fecha, filasTabla: filas.map(f=>({fecha:f.fecha,capital:f.capital,interes:f.interes})), vencimiento };
     const totalCap = filas.reduce((s,f)=>s+f.capital,0);
     const totalInt = filas.reduce((s,f)=>s+f.interes,0);
-    document.getElementById('scheduleResult').innerHTML = `
+    document.getElementById('scheduleResult').innerHTML = `${avisoCuadrePlan(filas, monto, moneda)}
       <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;">
         <div class="detail-row" style="flex:1;min-width:140px;"><span class="k">Cuotas</span><span class="v">${filas.length}</span></div>
         <div class="detail-row" style="flex:1;min-width:140px;"><span class="k">Total Capital</span><span class="v">${fmtNative(totalCap,moneda)}</span></div>
@@ -886,8 +887,9 @@ function openNewLineScheduleModal(){
   });
 
   document.getElementById('saveScheduleBtn').addEventListener('click', ()=> guard(()=>{
-    callServer('crearLinea', [scheduleData], res=>{
-      closeModal(); reloadData(()=>{ renderContent(); toast('Línea '+(res.numOp||res.id||'')+' creada con plan de pagos.'); });
+    callServer('crearLinea', [scheduleData], async res=>{
+      if(_planFile){ try{ await subirPlanBanco(res.numOp||scheduleData.numOp, _planFile); }catch(err){ toast('Operación creada, pero no se pudo adjuntar el plan: '+err.message, true); } }
+      closeModal(); reloadData(()=>{ renderContent(); toast('Operación '+(res.numOp||'')+' creada con plan de pagos.'); });
     });
   }));
 }
@@ -1336,7 +1338,7 @@ function openNewLeasingModal(){
     const btn = document.getElementById('saveLeasingBtn'); btn.disabled = true;
     const payload = { banco:scheduleData.banco, numOp:scheduleData.numOp, desembolso:scheduleData.desembolso, monto:scheduleData.monto, moneda:scheduleData.moneda, tasa:scheduleData.tasa, plazo:scheduleData.plazo, primerPago:scheduleData.primerPago, seguro:sscheduleData.seguro, ivaPct:scheduleData.ivaPct };
     callServer('crearLeasing', [payload], res=>{
-      closeModal(); reloadData(()=>{ renderContent(); toast('Contrato '+res.id+' guardado con '+scheduleData.plazo+' cuotas.'); });
+      closeModal(); reloadData(()=>{ renderContent(); toast('Contrato guardado con '+scheduleData.plazo+' cuotas.'); });
     }, ()=>{ btn.disabled = false; });
   });
 }
@@ -1375,8 +1377,8 @@ function historicoHtml(){
     </div>`;
   } else {
     body = `<div class="table-scroll" style="max-height:calc(100vh - 320px);">
-      <table><thead><tr><th>ID Pago</th><th>Línea</th><th>Banco</th><th>Fecha</th><th class="text-right">Monto</th><th>Estado</th><th></th></tr></thead>
-      <tbody>${history.map(h=>{ const line=lines.find(l=>l.id===h.linea); const cur=line?line.moneda:'USD'; return `<tr><td><b>${h.id}</b></td><td>${line?.numOp||h.linea}</td><td>${h.banco}</td><td>${h.fecha}</td><td class="text-right mono">${fmtNative(h.monto,cur)}</td><td><span class="badge ${h.estado==='Conciliado'?'badge-green':'badge-amber'}">${h.estado}</span></td><td>${isReadOnly()?'':`<button class="btn" style="padding:3px 8px;font-size:11px;" data-delp="${h.id}">Eliminar</button>`}</td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty-state">Sin pagos históricos registrados.</div></td></tr>'}</tbody></table>
+      <table><thead><tr><th>N° Operación</th><th>Banco</th><th>Fecha</th><th class="text-right">Monto</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${history.map(h=>{ const op=opLinea(h.linea); const cur=op.moneda; return `<tr><td><b>${op.numOp}</b></td><td>${h.banco}</td><td>${h.fecha}</td><td class="text-right mono">${fmtNative(h.monto,cur)}</td><td><span class="badge ${h.estado==='Conciliado'?'badge-green':'badge-amber'}">${h.estado}</span></td><td>${isReadOnly()?'':`<button class="btn" style="padding:3px 8px;font-size:11px;" data-delp="${h.id}">Eliminar</button>`}</td></tr>`; }).join('') || '<tr><td colspan="6"><div class="empty-state">Sin pagos históricos registrados.</div></td></tr>'}</tbody></table>
     </div>`;
   }
   return `<div class="table-card">
@@ -1911,6 +1913,7 @@ function bindContentEvents(){
     document.getElementById('lineEstadoSel').addEventListener('change', e=>{ state.lineEstadoFilter=e.target.value; renderContent();})
     document.getElementById('exportLinesBtn').addEventListener('click', ()=>{ exportCSV(filteredLines().map(l=>{const s=lineaSaldoActual(l);return{numOp:l.numOp||l.id,banco:l.banco,tipo:l.tipo,moneda:l.moneda,aprobado:l.aprobado,saldo:s,pct:l.aprobado?Math.round(s/l.aprobado*100):0,tasa:l.tasa,vencimiento:l.vencimiento,estado:l._cancelada?'Cancelada':estadoLinea(l).label}}), ['numOp','banco','tipo','moneda','aprobado','saldo','pct','tasa','vencimiento','estado'], 'lineas_credito.csv'); toast('Archivo CSV exportado.'); });
     document.getElementById('newLineBtn').addEventListener('click', ()=> guard(openNewLineScheduleModal));
+    document.getElementById('adjPlanesBtn').addEventListener('click', ()=> guard(openAdjuntarPlanesModal));
     bindRowClicks();
   }
   if(state.activeModule==='ops'){
@@ -2139,7 +2142,8 @@ function closeModal(){
   const bd = document.getElementById('modalBackdrop');
   if(!bd) return;
   bd.classList.remove('open');
-  setTimeout(()=>{ document.getElementById('modal-root').innerHTML=''; }, 160);
+  // Solo limpia si no se abrió otro modal mientras tanto (ej. Detalle → Editar).
+  setTimeout(()=>{ if(document.getElementById('modalBackdrop')===bd) document.getElementById('modal-root').innerHTML=''; }, 160);
 }
 function openLineDetailModal(id){
   const l = lines.find(x=>x.id===id);
@@ -2169,14 +2173,18 @@ function openLineDetailModal(id){
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn" id="verPlanBtn" ${planesAdjuntos.has(String(l.numOp))?'':'disabled title="Esta operación aún no tiene el plan del banco adjunto"'}>${ic('eye')} Ver plan del banco</button>
+      <button class="btn" id="actPlanBtn" ${isReadOnly()?'disabled title="Requiere rol Administrador"':''}>${ic('upload')} Actualizar con tabla del banco</button>
       <button class="btn" id="editLineBtn" ${isReadOnly()?'disabled title="Requiere rol Administrador"':''}>${ic('edit')} Editar</button>
       ${puedeArchivar ? `<button class="btn" id="archiveLineBtn" ${isReadOnly()?'disabled title="Requiere rol Administrador"':''}>${ic('history')} Archivar como Cancelada</button>` : ''}
     </div>`);
   document.getElementById('editLineBtn').addEventListener('click', ()=> guard(()=>{ closeModal(); openEditLineModal(l.id); }));
+  document.getElementById('verPlanBtn').addEventListener('click', ()=> window.open('/api/plan-pdf?op='+encodeURIComponent(l.numOp), '_blank'));
+  document.getElementById('actPlanBtn').addEventListener('click', ()=> guard(()=>{ closeModal(); openActualizarPlanModal(l.id); }));
   if(puedeArchivar){
     document.getElementById('archiveLineBtn').addEventListener('click', ()=> guard(()=>{
       callServer('archivarLinea', [l.id], res=>{
-        closeModal(); reloadData(()=>{ renderContent(); toast('Línea '+(l.numOp||l.id)+' archivada en Histórico.'); });
+        closeModal(); reloadData(()=>{ renderContent(); toast('Operación '+(l.numOp||'')+' archivada en Histórico.'); });
       });
     }));
   }
@@ -2384,7 +2392,7 @@ function openNewPaymentModal(){
     const btn = document.getElementById('savePaymentBtn'); btn.disabled=true;
     callServer('registrarPago', [{ lineaId, fecha, monto, capitalReal: capReal, interesReal: intReal, cuotaRow: cuotaRow ? Number(cuotaRow) : null }], res=>{
       fetch('/api/notificar-pago',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineaId,fecha,capitalReal:capReal,interesReal:intReal,tc:parseFloat((document.querySelector('.fx-note')||{}).textContent?.replace(/[^0-9.]/g,'')||'0'),estado:'Pagado'})}).catch(()=>{});
-      closeModal(); reloadData(()=>{ renderContent(); toast('Pago '+res.id+' registrado.'); });
+      closeModal(); reloadData(()=>{ renderContent(); toast('Pago registrado.'); });
     }, ()=>{ btn.disabled=false; });
   });
 }
@@ -2435,6 +2443,217 @@ function openBulkUploadModal(){
     }
   });
 }
+
+/* ================= PLANES DE PAGO DEL BANCO ================= */
+// Operaciones con plan del banco adjunto (Vercel Blob). Se carga en segundo plano.
+// Monto en la moneda de la operación (sin convertir): para comparar contra la tabla del banco.
+function fmtOp(n, cur){ return (SYM[cur]||'') + ' ' + (Number(n)||0).toLocaleString('es-CR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+let planesAdjuntos = new Set();
+function cargarPlanesAdjuntos(){
+  fetch('/api/plan-pdf?list=1').then(r=>r.ok?r.json():{ops:[]}).then(d=>{ planesAdjuntos = new Set(d.ops||[]); }).catch(()=>{});
+}
+function subirPlanBanco(numOp, file){
+  return fetch('/api/plan-pdf?op='+encodeURIComponent(numOp), { method:'POST', headers:{ 'Content-Type': file.type || 'application/pdf' }, body:file })
+    .then(r=>r.json()).then(d=>{ if(d.error) throw new Error(d.error); planesAdjuntos.add(String(numOp)); return d; });
+}
+// Lee la tabla del banco desde PDF (texto o escaneado), TXT/XLS de BCR, Excel o CSV.
+// Devuelve { filas:[{fecha,capital,interes}], banco, fuente }.
+async function leerTablaBanco(file, bancoHint, onStatus){
+  const ext = file.name.split('.').pop().toLowerCase();
+  const status = onStatus || (()=>{});
+  if(ext==='pdf'){
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+    status(`Leyendo ${pdf.numPages} página(s)…`);
+    const items = [];
+    for(let p=1;p<=pdf.numPages;p++){
+      const tc = await (await pdf.getPage(p)).getTextContent();
+      for(const it of tc.items) items.push({ y: it.transform[5] - p*10000, x: it.transform[4], w: it.width, s: it.str });
+    }
+    if(items.length){
+      const r = PlanesBanco.leer(PlanesBanco.textoDeItems(items), bancoHint);
+      if(r.filas.length) return { ...r, fuente:'Tabla del banco (texto del PDF)' };
+    }
+    status('PDF escaneado: leyendo la tabla con IA… (puede tardar hasta un minuto)');
+    const resp = await fetch('/api/leer-plan', { method:'POST', headers:{'Content-Type':'application/pdf'}, body:file }).then(r=>r.json());
+    if(resp.error) throw new Error(resp.error);
+    return { filas: resp.filas||[], banco: PlanesBanco.normBanco(bancoHint), fuente:'Tabla del banco leída con IA (revisar)' };
+  }
+  const texto = await file.text();
+  const r = PlanesBanco.leer(texto, bancoHint);
+  if(r.filas.length) return { ...r, fuente:'Tabla del banco' };
+  if(ext==='xlsx'||ext==='xls'){
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const wb=XLSX.read(new Uint8Array(await file.arrayBuffer()),{type:'array',raw:false});
+    const csv=excelRowsToCSV(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:''}));
+    return { filas: csvAFilas(csv), banco:null, fuente:'Excel' };
+  }
+  return { filas: csvAFilas(texto), banco:null, fuente:'CSV' };
+}
+function csvAFilas(csv){
+  return parseCSV(csv||'').filter(r=>r.length>=3 && /\d{4}-\d{2}-\d{2}/.test(r[0]))
+    .map(r=>({ fecha:r[0].trim(), capital:PlanesBanco.monto(r[1]), interes:PlanesBanco.monto(r[2]) }));
+}
+function filasACSV(filas){ return filas.map(f=>`${f.fecha},${f.capital.toFixed(2)},${f.interes.toFixed(2)}`).join('\n'); }
+// Aviso si el capital del plan no suma el monto del préstamo.
+function avisoCuadrePlan(filas, monto, moneda){
+  const cap = filas.reduce((s,f)=>s+f.capital,0);
+  if(!(monto>0)) return '';
+  const dif = Math.round((cap-monto)*100)/100;
+  if(Math.abs(dif) < 1) return `<div class="plan-ok" style="color:var(--green);font-size:12px;margin:6px 0;">✓ El capital del plan suma el monto del préstamo.</div>`;
+  return `<div style="color:var(--red);font-size:12px;margin:6px 0;font-weight:600;">⚠ El capital del plan suma ${fmtOp(cap,moneda)} y el préstamo es ${fmtOp(monto,moneda)} (diferencia ${fmtOp(dif,moneda)}). Revise la tabla antes de guardar.</div>`;
+}
+function tablaPlanHtml(filas, moneda){
+  return `<div class="table-scroll" style="max-height:280px;"><table><thead><tr><th>#</th><th>Fecha</th><th class="text-right">Días</th><th class="text-right">Capital</th><th class="text-right">Interés</th><th class="text-right">Cuota</th><th class="text-right">Saldo</th></tr></thead><tbody>${
+    filas.map((r,i)=>`<tr><td>${i+1}</td><td>${r.fecha}</td><td class="text-right mono">${r.dias??''}</td><td class="text-right mono">${fmtOp(r.capital,moneda)}</td><td class="text-right mono">${fmtOp(r.interes,moneda)}</td><td class="text-right mono">${fmtOp(r.capital+r.interes,moneda)}</td><td class="text-right mono">${r.saldo!=null?fmtOp(r.saldo,moneda):''}</td></tr>`).join('')
+  }</tbody></table></div>`;
+}
+
+// Actualiza el plan de una operación: con la tabla del banco (archivo) o calculándolo con el motor
+// financiero. Compara con la app, reemplaza solo las cuotas pendientes y adjunta el archivo si lo hay.
+function openActualizarPlanModal(lineaId){
+  const l = lines.find(x=>x.id===lineaId); if(!l) return;
+  const plan = (paymentPlans[l.id]||[]).slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const ultimaPagada = plan.filter(p=>p.estado==='Pagado'||p.estado==='Conciliado').map(p=>p.fecha).sort().pop() || '';
+  const primerPagoPlan = plan.length ? plan[0].fecha : '';
+  openModal(`
+    <div class="modal-header"><div><h2>Plan de pagos — ${l.numOp} · ${l.banco}</h2><div class="sub">Compara con la tabla del banco o recalcula, corrige las cuotas pendientes y adjunta el archivo</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button class="btn" id="apFileBtn">${ic('upload')} Cargar tabla del banco (PDF, TXT o Excel)</button>
+        <input type="file" id="apFile" accept=".pdf,.txt,.xls,.xlsx,.csv" style="display:none">
+        <button class="btn" id="apCalcBtn">${ic('percent')} Calcular plan (sin tabla del banco)</button>
+        <span id="apStatus" style="font-size:12px;color:var(--text-muted);"></span>
+      </div>
+      <div id="apCalcForm" class="form-grid" style="display:none;margin-top:10px;">
+        <div class="form-field"><label>Tipo de amortización</label><select id="ap_metodo">
+          <option value="auto">Según el banco (${escapeHtml(l.banco)})</option>
+          <option value="cuota_exacta">Cuota fija (días reales)</option>
+          <option value="cuota_bac">Cuota fija estilo BAC (tasa×365/360)</option>
+          <option value="capital_fijo">Capital fijo + intereses (estilo BCR)</option>
+          <option value="bullet">Solo intereses, capital al vencimiento</option></select></div>
+        <div class="form-field"><label>Tasa anual (%)</label><input type="number" step="0.0001" id="ap_tasa" value="${l.tasa}"></div>
+        <div class="form-field"><label>Fecha de desembolso</label><input type="date" id="ap_desembolso" value="${l.inicio}"></div>
+        <div class="form-field"><label>Fecha 1° pago</label><input type="date" id="ap_primer" value="${primerPagoPlan}"></div>
+        <div class="form-field"><label>Plazo (meses)</label><input type="number" id="ap_plazo" value="${l.plazo||12}"></div>
+        <div class="form-field"><label>Meses solo intereses</label><input type="number" id="ap_gracia" min="0" value="0"></div>
+        <div class="form-field"><label>Base de días</label><select id="ap_base"><option value="360">Días reales / 360</option><option value="365">Días reales / 365</option></select></div>
+        <div class="form-field" style="align-self:end;"><button class="btn btn-primary" id="apCalcGo">${ic('percent')} Calcular</button></div>
+      </div>
+      <div id="apResult" style="margin-top:12px;"></div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn" id="apSoloAdjuntar" disabled>${ic('upload')} Solo adjuntar archivo</button>
+      <button class="btn btn-primary" id="apReemplazar" disabled>${ic('refresh')} Corregir cuotas pendientes</button></div>`);
+  let archivo = null, pendientes = [], nuevaTasa = null;
+  const status = t => { document.getElementById('apStatus').textContent = t; };
+
+  function mostrar(filas, fuente){
+    pendientes = filas.filter(f=>!ultimaPagada || f.fecha > ultimaPagada);
+    const appPorFecha = Object.fromEntries(plan.map(p=>[p.fecha,p]));
+    const esDistinta = d => d.f.fecha>ultimaPagada && (!d.a || Math.abs(d.f.capital-d.a.capital)>=0.01 || Math.abs(d.f.interes-d.a.interes)>=0.01);
+    const difs = filas.map(f=>({ f, a: appPorFecha[f.fecha] }));
+    const sobran = plan.filter(p=>p.fecha>ultimaPagada && !filas.some(f=>f.fecha===p.fecha)).length;
+    const nDif = difs.filter(esDistinta).length + sobran;
+    const saldoApp = lineaSaldoActual(l);
+    const capPend = pendientes.reduce((s,f)=>s+f.capital,0);
+    const intApp = plan.filter(p=>p.fecha>ultimaPagada).reduce((s,p)=>s+p.interes,0);
+    const intNuevo = pendientes.reduce((s,f)=>s+f.interes,0);
+    status(`${fuente}: ${filas.length} cuotas.`);
+    document.getElementById('apResult').innerHTML = `
+      ${avisoCuadrePlan(filas, l.aprobado, l.moneda)}
+      <div style="font-size:13px;margin:6px 0;"><b>${nDif ? `${nDif} cuota(s) pendiente(s) distintas a la app.` : 'Las cuotas pendientes coinciden con la app.'}</b>
+        Intereses pendientes: app ${fmtOp(intApp,l.moneda)} → nuevo ${fmtOp(intNuevo,l.moneda)} (${fmtOp(intNuevo-intApp,l.moneda)}).
+        ${Math.abs(capPend-saldoApp)>=1 ? `<br><span style="color:var(--text-muted);">Capital pendiente del plan: ${fmtOp(capPend,l.moneda)} · saldo actual en la app: ${fmtOp(saldoApp,l.moneda)}. El saldo real lo dan los pagos aplicados.</span>` : ''}</div>
+      <div class="table-scroll" style="max-height:300px;"><table><thead><tr><th>Fecha</th><th class="text-right">Capital nuevo</th><th class="text-right">Interés nuevo</th><th class="text-right">Capital app</th><th class="text-right">Interés app</th><th>Estado app</th></tr></thead><tbody>${
+        difs.map(d=>`<tr style="${esDistinta(d)?'background:var(--red-bg);':''}"><td>${d.f.fecha}</td><td class="text-right mono">${fmtOp(d.f.capital,l.moneda)}</td><td class="text-right mono">${fmtOp(d.f.interes,l.moneda)}</td><td class="text-right mono">${d.a?fmtOp(d.a.capital,l.moneda):'—'}</td><td class="text-right mono">${d.a?fmtOp(d.a.interes,l.moneda):'—'}</td><td>${d.a?d.a.estado:'No existe'}</td></tr>`).join('')
+      }</tbody></table></div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Se reemplazan solo las cuotas posteriores al último pago (${ultimaPagada||'sin pagos'}); las pagadas no se tocan.</div>`;
+    document.getElementById('apSoloAdjuntar').disabled = !archivo;
+    document.getElementById('apReemplazar').disabled = !pendientes.length || isReadOnly();
+    document.getElementById('apReemplazar').innerHTML = `${ic('refresh')} Corregir cuotas pendientes${archivo?' y adjuntar':''}`;
+  }
+
+  document.getElementById('apFileBtn').addEventListener('click', ()=> document.getElementById('apFile').click());
+  document.getElementById('apFile').addEventListener('change', async e=>{
+    const f = e.target.files[0]; e.target.value=''; if(!f) return;
+    archivo = f; nuevaTasa = null; document.getElementById('apCalcForm').style.display='none';
+    status('Procesando…');
+    try{
+      const r = await leerTablaBanco(f, l.banco, status);
+      if(!r.filas.length){ status('No se encontraron cuotas en el archivo.'); return; }
+      mostrar(r.filas, r.fuente);
+    }catch(err){ console.error('[plan banco]',err); status('Error: '+err.message); }
+  });
+  document.getElementById('apCalcBtn').addEventListener('click', ()=>{ document.getElementById('apCalcForm').style.display=''; });
+  document.getElementById('apCalcGo').addEventListener('click', ()=>{
+    archivo = null;
+    const tasa = parseFloat(document.getElementById('ap_tasa').value)||0;
+    const calc = PlanesBanco.calcular({ monto: l.aprobado, tasa, banco: l.banco,
+      desembolso: document.getElementById('ap_desembolso').value, primerPago: document.getElementById('ap_primer').value || null,
+      plazo: parseInt(document.getElementById('ap_plazo').value)||12, gracia: parseInt(document.getElementById('ap_gracia').value)||0,
+      metodo: document.getElementById('ap_metodo').value, base: parseInt(document.getElementById('ap_base').value)||360 });
+    nuevaTasa = Math.abs(tasa - l.tasa) > 1e-9 ? tasa : null;
+    mostrar(calc.filas, `Calculado (${({cuota_exacta:'cuota fija, días reales',cuota_bac:'cuota fija estilo BAC',capital_fijo:'capital fijo + intereses',bullet:'capital al vencimiento'})[calc.metodo]})`);
+  });
+  document.getElementById('apSoloAdjuntar').addEventListener('click', ()=> guard(async ()=>{
+    try{ await subirPlanBanco(l.numOp, archivo); closeModal(); toast('Plan del banco adjuntado a '+l.numOp+'.'); }
+    catch(err){ toast('No se pudo adjuntar: '+err.message, true); }
+  }));
+  document.getElementById('apReemplazar').addEventListener('click', ()=> guard(()=>{
+    const btn = document.getElementById('apReemplazar'); btn.disabled = true;
+    callServer('reemplazarPlanPagos', [l.id, pendientes.map(f=>[f.fecha, f.capital, f.interes])], async res=>{
+      if(archivo){ try{ await subirPlanBanco(l.numOp, archivo); }catch(err){ toast('Plan corregido, pero no se pudo adjuntar el archivo: '+err.message, true); } }
+      const terminar = ()=>{ closeModal(); reloadData(()=>{ renderContent(); toast(`Plan de ${l.numOp} corregido: ${res.added} cuota(s) pendiente(s).`); }); };
+      if(nuevaTasa!=null) callServer('editarLinea', [l.id, { Tasa: String(nuevaTasa).replace('.', ',') }], terminar, terminar); else terminar();
+    }, ()=>{ btn.disabled = false; });
+  }));
+}
+
+// Adjunta varios planes a la vez: cada archivo se asocia a la operación cuyo número aparece en el nombre.
+function openAdjuntarPlanesModal(){
+  openModal(`
+    <div class="modal-header"><div><h2>Adjuntar planes del banco</h2><div class="sub">Seleccione los archivos de la carpeta PLAN DE PAGOS; se asocian por el número de operación del nombre del archivo</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="modal-body">
+      <button class="btn" id="adjBtn">${ic('upload')} Elegir archivos</button>
+      <input type="file" id="adjFiles" multiple accept=".pdf,.txt,.xls,.xlsx" style="display:none">
+      <div id="adjResult" style="margin-top:12px;"></div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn btn-primary" id="adjSubir" disabled>${ic('upload')} Adjuntar</button></div>`);
+  let pares = [];
+  const ops = lines.map(l=>({ l, d: PlanesBanco.digitos(l.numOp) })).filter(x=>x.d.length>=5);
+  document.getElementById('adjBtn').addEventListener('click', ()=> document.getElementById('adjFiles').click());
+  const buscarOp = d => { const m = ops.filter(x=>d.endsWith(x.d) || d.includes(x.d)).sort((a,b)=>b.d.length-a.d.length)[0]; return m ? m.l : null; };
+  document.getElementById('adjFiles').addEventListener('change', async e=>{
+    const files = [...e.target.files]; e.target.value='';
+    pares = [];
+    for(const f of files){
+      let l = buscarOp(PlanesBanco.digitos(f.name.replace(/\.[^.]+$/,'')));
+      // BCR no pone la operación en el nombre del archivo: se busca en el contenido ("No. OPERACION 01-562-01-03-6159873").
+      if(!l && /\.(txt|xls)$/i.test(f.name)){ const m = (await f.text()).match(/No\.\s*OPERACION\s+([\d\s-]+)/i); if(m) l = buscarOp(PlanesBanco.digitos(m[1])); }
+      pares.push({ f, l });
+    }
+    const conOp = pares.filter(p=>p.l);
+    document.getElementById('adjResult').innerHTML = `<div style="font-size:13px;margin-bottom:6px;"><b>${conOp.length}</b> de ${files.length} archivo(s) corresponden a operaciones activas.</div>
+      <div class="table-scroll" style="max-height:320px;"><table><thead><tr><th>Archivo</th><th>Operación</th><th>Estado</th></tr></thead><tbody>${
+        pares.map((p,i)=>`<tr><td>${escapeHtml(p.f.name)}</td><td>${p.l?`${p.l.numOp} · ${p.l.banco}`:'<span class="text-muted">No es una operación activa</span>'}</td><td id="adjSt${i}">${p.l?(planesAdjuntos.has(String(p.l.numOp))?'Ya tiene plan (se reemplaza)':'Pendiente'):'—'}</td></tr>`).join('')
+      }</tbody></table></div>`;
+    document.getElementById('adjSubir').disabled = !conOp.length;
+  });
+  document.getElementById('adjSubir').addEventListener('click', ()=> guard(async ()=>{
+    const btn = document.getElementById('adjSubir'); btn.disabled = true;
+    let ok = 0;
+    for(let i=0;i<pares.length;i++){
+      const p = pares[i]; if(!p.l) continue;
+      const cel = document.getElementById('adjSt'+i); cel.textContent = 'Subiendo…';
+      try{ await subirPlanBanco(p.l.numOp, p.f); cel.textContent = '✓ Adjuntado'; ok++; }
+      catch(err){ cel.textContent = '✗ '+err.message; }
+    }
+    toast(`${ok} plan(es) adjuntado(s).`);
+  }));
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 /* ================= INIT ================= */
 document.addEventListener('click', e=>{
