@@ -12,6 +12,7 @@ import {
   reemplazarPlanPagos,
   archivarLinea,
   importarHistoricoDeuda,
+  repararIdLinea,
   importarActivas,
   importarCanceladas,
   importarPagos,
@@ -89,6 +90,9 @@ export default async function handler(req, res) {
         break;
       case 'editarUsuario':
         result = await editarUsuario(email, args[0], args[1]);
+        break;
+      case 'repararIdLinea':
+        result = await repararIdLinea(email, args[0]);
         break;
       case 'importarHistoricoDeuda':
         result = await importarHistoricoDeuda(email, args[0]);
