@@ -24,6 +24,8 @@ import {
   eliminarPago,
   editarUsuario,
   getUsuarioRecord,
+  getCorreccionesCierre,
+  aplicarCorreccionesCierre,
 } from '../../lib/backend';
 
 export default async function handler(req, res) {
@@ -45,6 +47,12 @@ export default async function handler(req, res) {
     switch (action) {
       case 'getBootstrapData':
         result = await getBootstrapData(email);
+        break;
+      case 'getCorreccionesCierre':
+        result = await getCorreccionesCierre(email);
+        break;
+      case 'aplicarCorreccionesCierre':
+        result = await aplicarCorreccionesCierre(email);
         break;
       case 'crearLinea':
         result = await crearLinea(email, args[0]);

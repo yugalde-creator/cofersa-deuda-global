@@ -376,6 +376,7 @@ function renderContent(){
   if(state.activeModule==='dashboard'){
     const sel = state.panelEmpresa || 'COFERSA';
     c.innerHTML = dashboardHtml();
+    if(sel==='COFERSA') loadCorrecciones();
     if(sel!=='COFERSA' && !_grupoData) loadPanelGrupo();
   }
   else if(state.activeModule==='lines') c.innerHTML = linesHtml();
@@ -599,6 +600,44 @@ function amortizacionProximosHtml(){
       </div>
     </div>`;
 }
+/* ================= CORRECCIONES DEL CIERRE (un clic, solo Admin) ================= */
+let _corrPend = null, _corrChecked = false;
+function correccionesCardHtml(p){
+  if(!p || !p.pendientes || !p.pendientes.length) return '';
+  return `<div class="table-card" style="margin-bottom:14px;border:2px solid #FF6600;">
+    <div class="panel-header-dark" style="background:#FF6600;">${ic('audit')}<span>Correcciones del cierre pendientes (${p.pendientes.length})</span></div>
+    <div style="padding:12px 16px;font-size:12.5px;">
+      <div class="text-muted" style="margin-bottom:8px;">Un solo clic aplica estos cambios en el Sheet y queda registro en Seguridad y Auditoría:</div>
+      <ul style="margin:0 0 12px 18px;">${p.pendientes.map(x=>'<li>'+x.desc+'</li>').join('')}</ul>
+      <button class="btn btn-primary" id="aplicarCorrBtn">${ic('check')} Aplicar correcciones</button>
+    </div></div>`;
+}
+function bindCorrecciones(){
+  const b = document.getElementById('aplicarCorrBtn'); if(!b) return;
+  b.addEventListener('click', ()=>{
+    b.disabled = true; b.textContent = 'Aplicando…';
+    callServer('aplicarCorreccionesCierre', [], r=>{
+      toast(r.errores ? ('Aplicadas '+r.aplicadas+' con '+r.errores+' error(es): revisa Seguridad y Auditoría.') : ('Listo: '+r.aplicadas+' corrección(es) aplicadas.'), !!r.errores);
+      _corrChecked = false; _corrPend = null;
+      reloadData(()=> renderContent());
+    }, ()=>{ b.disabled = false; b.textContent = 'Aplicar correcciones'; });
+  });
+}
+function loadCorrecciones(){
+  if(isReadOnly()) return;
+  if(_corrChecked){ bindCorrecciones(); return; }
+  _corrChecked = true;
+  fetch('/api/action', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'getCorreccionesCierre', args:[] }) })
+    .then(r => r.json())
+    .then(res => {
+      if(!res.success) return;
+      _corrPend = res.data;
+      const el = document.getElementById('correccionesCard');
+      if(el && state.activeModule==='dashboard'){ el.innerHTML = correccionesCardHtml(_corrPend); bindCorrecciones(); }
+    })
+    .catch(()=>{ _corrChecked = false; });
+}
+
 const PANEL_EMPRESAS = ['FEBECA','BEVAL','SILLACA','FQ','PRISMA'];
 function panelEmpresaSelectorHtml(){
   const sel = state.panelEmpresa || 'COFERSA';
@@ -616,6 +655,7 @@ function dashboardHtml(){
   const sel = state.panelEmpresa || 'COFERSA';
   if(sel === 'COFERSA'){
     return panelEmpresaSelectorHtml()
+      + '<div id="correccionesCard">' + correccionesCardHtml(_corrPend) + '</div>'
       + '<div class="panel-grid">' + saldosPorBancoHtml() + distribucionPorMonedaHtml() + '</div>'
       + '<div class="panel-grid">' + indicadoresFinancierosHtml() + tendenciaTasasPorBancoHtml() + '</div>'
       + tendenciaDeudaHtml();
