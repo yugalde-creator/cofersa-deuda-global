@@ -1625,27 +1625,9 @@ function grupoBodyHtml(d, sel){
 }
 function exportarReporteIntereses(){
   if(!_interesesData) return;
-  const d = _interesesData;
-  const pAnt = d.periodos.causado.label;
-  const pSig = d.periodos.proyeccion.label;
-  let csv = 'REPORTE APARTADO DE INTERESES\n';
-  csv += 'Causado: ' + pAnt + ' | Proyeccion: ' + pSig + '\n\n';
-  csv += 'CAUSADO\nBanco,N° Operacion,Moneda,Capital,Tasa,Desde,Hasta,Dias,Interes\n';
-  d.causado.forEach(function(f){ csv += [f.banco,f.op,f.moneda,f.capital,(f.tasa*100).toFixed(2)+'%',f.desde,f.hasta,f.dias,f.interes].join(',') + '\n'; });
-  csv += '\nEJECUTADO\nBanco,N° Operacion,Moneda,Fecha,Interes\n';
-  d.ejecutado.forEach(function(f){ csv += [f.banco,f.op,f.moneda,f.fecha,f.interes].join(',') + '\n'; });
-  csv += '\nPROYECCION\nBanco,N° Operacion,Moneda,Capital,Tasa,Desde,Hasta,Dias,Interes\n';
-  d.proyeccion.forEach(function(f){ csv += [f.banco,f.op,f.moneda,f.capital,(f.tasa*100).toFixed(2)+'%',f.desde,f.hasta,f.dias,f.interes].join(',') + '\n'; });
-  csv += '\nTOTALES\nConcepto,CRC,USD\n';
-  csv += 'Causado,' + d.totales.causado.crc + ',' + d.totales.causado.usd + '\n';
-  csv += 'Ejecutado,' + d.totales.ejecutado.crc + ',' + d.totales.ejecutado.usd + '\n';
-  csv += 'Proyeccion,' + d.totales.proyeccion.crc + ',' + d.totales.proyeccion.usd + '\n';
-  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'Intereses_' + pAnt.replace(/ /g,'_') + '.csv';
-  a.click();
-  toast('Reporte exportado.');
+  const p = _interesesData.periodos.causado;
+  toast('Generando Excel del Apartado de Intereses…');
+  window.location.href = '/api/apartado-xlsx?anio=' + p.anio + '&mes=' + p.mes;
 }
 
 function interesesMesesOpciones(selAnio, selMes){
@@ -1683,7 +1665,7 @@ function interesesHtml(d){
     + interesesMesesOpciones(selAnio, selMes)
     + '</select>'
     + '<div class="spacer"></div>'
-    + '<button id="intExportBtn" class="btn btn-primary">' + ic('download') + ' Exportar CSV</button>'
+    + '<button id="intExportBtn" class="btn btn-primary">' + ic('download') + ' Descargar Excel</button>'
     + '</div>';
 
   // KPIs

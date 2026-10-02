@@ -8,6 +8,23 @@
  * backend.js — la misma fuente de verdad que usa el frontend.
  */
 const { buildResumenDeuda, buildAlertaPagosHtml, buildResumenHtml, enviarEmail } = require('../../../lib/reportes');
+const { generarApartadoXlsx } = require('../../../lib/apartadoXlsx');
+
+const fmtN = (n, cur) => (cur === 'USD' ? '$' : '₡') + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Correo mensual con el Excel oficial "Apartado de Intereses" adjunto. */
+async function enviarApartado(anio, mes) {
+  const { buffer, filename, resumen } = await generarApartadoXlsx(anio, mes);
+  const t = resumen;
+  const html = `<div style="font-family:sans-serif;font-size:14px;"><h3 style="color:#1F3864;">Apartado de Intereses — ${t.mes}</h3>` +
+    `<table border="1" cellpadding="6" style="border-collapse:collapse;font-size:13px;"><tr style="background:#1F3864;color:#fff;"><th>Concepto</th><th>Colones</th><th>Dólares</th></tr>` +
+    `<tr><td>Interés causado (${t.mes})</td><td align="right">${fmtN(t.causado.crc, 'CRC')}</td><td align="right">${fmtN(t.causado.usd, 'USD')}</td></tr>` +
+    `<tr><td>Interés ejecutado (pagado)</td><td align="right">${fmtN(t.ejecutado.crc, 'CRC')}</td><td align="right">${fmtN(t.ejecutado.usd, 'USD')}</td></tr>` +
+    `<tr><td>Proyectado (${t.sig})</td><td align="right">${fmtN(t.proyeccion.crc, 'CRC')}</td><td align="right">${fmtN(t.proyeccion.usd, 'USD')}</td></tr></table>` +
+    `<p style="color:#555;">Detalle por operación en el Excel adjunto (Resumen · Causado · Ejecutado · Proyección).</p></div>`;
+  const r = await enviarEmail(`Apartado de Intereses COFERSA — ${t.mes} / Proyección ${t.sig}`, html, [{ filename, content: buffer }]);
+  return { tipo: 'apartado', archivo: filename, ...r };
+}
 
 export default async function handler(req, res) {
   const authHeader = req.headers['authorization'];
@@ -20,6 +37,12 @@ export default async function handler(req, res) {
     const r = await buildResumenDeuda();
     const fecha = r.today.toLocaleDateString('es-CR');
     const enviados = [];
+
+    // Envío a demanda del Apartado de Intereses: /api/cron/reporte-diario?apartado=1[&anio=2026&mes=9]
+    if (req.query.apartado) {
+      const a = await enviarApartado(parseInt(req.query.anio, 10) || undefined, parseInt(req.query.mes, 10) || undefined);
+      return res.status(200).json({ ok: true, fecha, enviados: [a] });
+    }
 
     const alertaHtml = buildAlertaPagosHtml(r);
     if (alertaHtml) {
@@ -36,6 +59,7 @@ export default async function handler(req, res) {
     }
 
     if (r.today.getDate() === 1) {
+      enviados.push(await enviarApartado());
       const res4 = await enviarEmail('Resumen Mensual de Deuda — Cofersa ' + fecha, buildResumenHtml(r, 'mensual'));
       enviados.push({ tipo: 'mensual', ...res4 });
     }
