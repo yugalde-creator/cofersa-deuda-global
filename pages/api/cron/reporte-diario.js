@@ -29,7 +29,8 @@ async function enviarApartado(anio, mes) {
 
 /** Correo mensual con el informe de deuda para el CFO (Excel) adjunto. */
 async function enviarInformeCfo(anio, mes) {
-  const { buffer, filename, resumen: t } = await generarInformeCfoXlsx(anio, mes);
+  // persistir: guarda el cierre del mes en la pestaña Historico_Tasa (alimenta la tasa efectiva a 12 meses)
+  const { buffer, filename, resumen: t } = await generarInformeCfoXlsx(anio, mes, { persistir: true });
   const sg = n => (n >= 0 ? '+' : '−') + '$' + Math.abs(Math.round(n)).toLocaleString('en-US');
   const html = `<div style="font-family:sans-serif;font-size:14px;"><h3 style="color:#1F3864;">Informe de deuda financiera — cierre ${t.mes}</h3>` +
     `<table border="1" cellpadding="6" style="border-collapse:collapse;font-size:13px;"><tr style="background:#1F3864;color:#fff;"><th>Concepto</th><th>Monto</th></tr>` +

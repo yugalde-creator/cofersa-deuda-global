@@ -16,7 +16,9 @@ export default async function handler(req, res) {
   try {
     const anio = parseInt(req.query.anio, 10) || undefined;
     const mes = parseInt(req.query.mes, 10) || undefined;
-    const { buffer, filename } = await generarInformeCfoXlsx(anio, mes);
+    // Un Admin que descarga un mes ya cerrado también deja guardado su cierre en Historico_Tasa.
+    const hoy = new Date(), cerrado = anio && mes && (anio < hoy.getFullYear() || (anio === hoy.getFullYear() && mes < hoy.getMonth() + 1));
+    const { buffer, filename } = await generarInformeCfoXlsx(anio, mes, { persistir: user.rol === 'Admin' && !!cerrado });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.status(200).send(buffer);
