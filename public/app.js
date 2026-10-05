@@ -1836,7 +1836,16 @@ function reportesHtml(){
     { id:'r_exposicion', nombre:'Exposición por Banco', desc:'Límite, usado y disponible por banco (moneda actual).' },
     { id:'r_auditoria', nombre:'Bitácora de Auditoría', desc:'Historial de acciones del sistema.' },
   ];
-  return `<div class="table-card">
+  const hoyR = new Date(), ant = new Date(hoyR.getFullYear(), hoyR.getMonth()-1, 1);
+  return `<div class="table-card" style="margin-bottom:14px;border:2px solid var(--navy,#1F3864);">
+    <div class="panel-header-dark">${ic('report')}<span>Informe de deuda para el CFO (Excel)</span></div>
+    <div style="padding:14px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+      <div style="flex:1;min-width:260px;"><b style="font-size:13px;">Cierre mensual de la deuda</b><div class="text-muted" style="font-size:11.5px;margin-top:2px;">Resumen ejecutivo, detalle por operación, movimiento de la deuda, vencimientos a 12 meses, intereses y conciliación con los estados de cuenta. Se envía solo el día 1 de cada mes.</div></div>
+      <select id="cfoMes" class="tb-select" id="cfoMesSel" style="min-width:150px;">${interesesMesesOpciones(ant.getFullYear(), ant.getMonth()+1)}</select>
+      <button class="btn btn-primary" id="cfoBtn">${ic('download')} Descargar informe</button>
+    </div>
+  </div>
+  <div class="table-card">
     <div class="panel-header-dark">${ic('report')}<span>Reportes</span></div>
     <div class="import-panel" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
       ${reports.map(r=>`<div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
@@ -1979,6 +1988,12 @@ function bindContentEvents(){
   }
     document.querySelectorAll('[data-delp]').forEach(btn=>{ btn.addEventListener('click', e=>{ e.stopPropagation(); guard(()=>{ if(!confirm('w�Eliminar este pago? Esta acción no se puede deshacer.')) return; callServer('eliminarPago', [btn.dataset.delp], ()=>{ reloadData(()=>{ renderContent(); toast('Pago eliminado.'); }); }); }); }); });
   if(state.activeModule==='reportes'){
+    const cfoBtn = document.getElementById('cfoBtn');
+    if(cfoBtn) cfoBtn.addEventListener('click', ()=>{
+      const v = (document.getElementById('cfoMes').value||'').split('-');
+      toast('Generando el informe para el CFO…');
+      window.location.href = '/api/informe-cfo?anio=' + v[0] + '&mes=' + v[1];
+    });
     document.querySelectorAll('[data-report]').forEach(btn=>{ btn.addEventListener('click', ()=> runReport(btn.dataset.report)); });
   }
   if(state.activeModule==='proyecciones'){
