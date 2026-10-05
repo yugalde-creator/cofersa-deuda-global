@@ -28,9 +28,9 @@ async function enviarApartado(anio, mes) {
 }
 
 /** Correo mensual con el informe de deuda para el CFO (Excel) adjunto. */
-async function enviarInformeCfo(anio, mes) {
+async function enviarInformeCfo(anio, mes, prueba) {
   // persistir: guarda el cierre del mes en la pestaña Historico_Tasa (alimenta la tasa efectiva a 12 meses)
-  const { buffer, filename, resumen: t } = await generarInformeCfoXlsx(anio, mes, { persistir: true });
+  const { buffer, filename, resumen: t } = await generarInformeCfoXlsx(anio, mes, { persistir: !prueba });
   const sg = n => (n >= 0 ? '+' : '−') + '$' + Math.abs(Math.round(n)).toLocaleString('en-US');
   const html = `<div style="font-family:sans-serif;font-size:14px;"><h3 style="color:#1F3864;">Informe de deuda financiera — cierre ${t.mes}</h3>` +
     `<table border="1" cellpadding="6" style="border-collapse:collapse;font-size:13px;"><tr style="background:#1F3864;color:#fff;"><th>Concepto</th><th>Monto</th></tr>` +
@@ -40,9 +40,13 @@ async function enviarInformeCfo(anio, mes) {
     `<tr><td>Variación vs. cierre anterior</td><td align="right">${sg(t.variacionUSD)}</td></tr>` +
     `<tr><td>Tasa ponderada</td><td align="right">${(t.tasaPond * 100).toFixed(2)}%</td></tr>` +
     `<tr><td>Interés causado del mes</td><td align="right">${fmtN(t.causado.crc, 'CRC')} + ${fmtN(t.causado.usd, 'USD')}</td></tr></table>` +
+    `<h4 style="color:#1F3864;margin:16px 0 6px;">Tasa efectiva real por acreedor (12 meses)</h4>` +
+    `<table border="1" cellpadding="6" style="border-collapse:collapse;font-size:13px;"><tr style="background:#1F3864;color:#fff;"><th>Acreedor</th><th>Nominal hoy</th><th>Efectiva 12 meses</th><th>Mín. / Máx.</th><th>Tendencia</th></tr>` +
+    t.tasas.map(x => { const T = { Subiendo: ['↑ Subiendo', '#C00000', '#FCE4E4'], Bajando: ['↓ Bajando', '#375623', '#E2F0D9'], Estable: ['→ Estable', '#595959', '#EDEDED'] }[x.tend]; const p = v => (v * 100).toFixed(2) + '%'; return `<tr><td><b>${x.banco === 'TOTAL' ? 'COFERSA (total)' : x.banco}</b></td><td align="right">${p(x.nominal)}</td><td align="right"><b>${p(x.efectiva12)}</b></td><td align="right">${p(x.min)} / ${p(x.max)}</td><td align="center" style="color:${T[1]};background:${T[2]};"><b>${T[0]}</b></td></tr>`; }).join('') + `</table>` +
     `<ul style="color:#333;">${t.puntos.map(p => '<li>' + p + '</li>').join('')}</ul>` +
+
     `<p style="color:#555;">Detalle en el Excel adjunto. Complete la hoja <b>Conciliación</b> con los saldos de los estados de cuenta para validar cada operación.</p></div>`;
-  const r = await enviarEmail(`Informe de deuda COFERSA — cierre ${t.mes}`, html, [{ filename, content: buffer }]);
+  const r = await enviarEmail(`Informe de deuda COFERSA — cierre ${t.mes}`, html, [{ filename, content: buffer }], prueba);
   return { tipo: 'informe-cfo', archivo: filename, ...r };
 }
 
@@ -66,7 +70,8 @@ export default async function handler(req, res) {
 
     // Envío a demanda del informe para el CFO: /api/cron/reporte-diario?cfo=1[&anio=2026&mes=9]
     if (req.query.cfo) {
-      const a = await enviarInformeCfo(parseInt(req.query.anio, 10) || undefined, parseInt(req.query.mes, 10) || undefined);
+      // &prueba=correo@dominio: envía solo a ese usuario registrado (sin guardar el cierre en Historico_Tasa)
+      const a = await enviarInformeCfo(parseInt(req.query.anio, 10) || undefined, parseInt(req.query.mes, 10) || undefined, req.query.prueba);
       return res.status(200).json({ ok: true, fecha, enviados: [a] });
     }
 
