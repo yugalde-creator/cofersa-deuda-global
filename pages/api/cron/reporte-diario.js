@@ -11,6 +11,7 @@ const { buildResumenDeuda, buildAlertaPagosHtml, buildResumenHtml, enviarEmail }
 const { generarApartadoXlsx } = require('../../../lib/apartadoXlsx');
 const { generarInformeCfoXlsx } = require('../../../lib/informeCfoXlsx');
 const { buildInformeCfoHtml } = require('../../../lib/informeCfoEmail');
+const { generarMatrizDeudaXlsx } = require('../../../lib/matrizDeudaXlsx');
 
 const fmtN = (n, cur) => (cur === 'USD' ? '$' : '₡') + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -33,7 +34,9 @@ async function enviarInformeCfo(anio, mes, prueba) {
   // persistir: guarda el cierre del mes en la pestaña Historico_Tasa (alimenta la tasa efectiva a 12 meses)
   const { buffer, filename, resumen: t } = await generarInformeCfoXlsx(anio, mes, { persistir: !prueba });
   const html = buildInformeCfoHtml(t);
-  const r = await enviarEmail(`Informe de deuda COFERSA — cierre ${t.mes}`, html, [{ filename, content: buffer }], prueba);
+  const adjuntos = [{ filename, content: buffer }];
+  try { const m = await generarMatrizDeudaXlsx(anio, mes); adjuntos.push({ filename: m.filename, content: m.buffer }); } catch (e) { console.error('matriz-deuda:', e.message); }
+  const r = await enviarEmail(`Informe de deuda COFERSA — cierre ${t.mes}`, html, adjuntos, prueba);
   return { tipo: 'informe-cfo', archivo: filename, ...r };
 }
 

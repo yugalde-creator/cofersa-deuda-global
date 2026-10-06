@@ -1841,8 +1841,9 @@ function reportesHtml(){
     <div class="panel-header-dark">${ic('report')}<span>Informe de deuda para el CFO (Excel)</span></div>
     <div style="padding:14px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
       <div style="flex:1;min-width:260px;"><b style="font-size:13px;">Cierre mensual de la deuda</b><div class="text-muted" style="font-size:11.5px;margin-top:2px;">Resumen ejecutivo, detalle por operación, movimiento de la deuda, vencimientos a 12 meses, intereses y conciliación con los estados de cuenta. Se envía solo el día 1 de cada mes.</div></div>
-      <select id="cfoMes" class="tb-select" id="cfoMesSel" style="min-width:150px;">${interesesMesesOpciones(ant.getFullYear(), ant.getMonth()+1)}</select>
+      <select id="cfoMes" class="tb-select" style="min-width:150px;">${interesesMesesOpciones(ant.getFullYear(), ant.getMonth()+1)}</select>
       <button class="btn btn-primary" id="cfoBtn">${ic('download')} Descargar informe</button>
+      <button class="btn" id="matrizBtn" title="Matriz de deuda en el formato de tesorería">${ic('download')} Matriz de deuda</button>
     </div>
   </div>
   <div class="table-card">
@@ -1993,6 +1994,12 @@ function bindContentEvents(){
       const v = (document.getElementById('cfoMes').value||'').split('-');
       toast('Generando el informe para el CFO…');
       window.location.href = '/api/informe-cfo?anio=' + v[0] + '&mes=' + v[1];
+    });
+    const matrizBtn = document.getElementById('matrizBtn');
+    if(matrizBtn) matrizBtn.addEventListener('click', ()=>{
+      const v = (document.getElementById('cfoMes').value||'').split('-');
+      toast('Generando la matriz de deuda…');
+      window.location.href = '/api/matriz-deuda?anio=' + v[0] + '&mes=' + v[1];
     });
     document.querySelectorAll('[data-report]').forEach(btn=>{ btn.addEventListener('click', ()=> runReport(btn.dataset.report)); });
   }
