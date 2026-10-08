@@ -20,7 +20,7 @@ export default function LoginPage() {
         textAlign: 'center',
         boxShadow: '0 20px 60px rgba(0,0,0,0.4)'
       }}>
-        <div style={{ fontSize: 48, marginBottom: 8 }}>🏦</div>
+        <img src="/cofersa-logo.png" alt="Cofersa" style={{ height: 72, width: 'auto', marginBottom: 14 }} />
         <h1 style={{ margin: '0 0 4px', fontSize: 24, color: '#0f2942', fontWeight: 700 }}>Deuda Global</h1>
         <p style={{ margin: '0 0 32px', color: '#666', fontSize: 14 }}>COFERSA — Sistema de Gestión Financiera</p>
         <button

@@ -27,7 +27,12 @@ body{
 .icon-lg{width:20px;height:20px;}
 .sidebar{width:216px; background:var(--navy-900); color:#94a3b8; flex-shrink:0; display:flex; flex-direction:column; transition:width .18s ease; overflow:hidden;}
 .sidebar.collapsed{width:60px;}
-.brand{height:56px; display:flex; align-items:center; gap:10px; padding:0 16px; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0;}
+.brand{display:flex; flex-direction:column; align-items:stretch; gap:8px; padding:12px 14px 11px; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0;}
+.brand-logo{background:#fff;border-radius:8px;height:42px;display:flex;align-items:center;justify-content:center;padding:5px 10px;overflow:hidden;}
+.brand-logo img{height:100%;width:auto;max-width:100%;display:block;}
+.sidebar.collapsed .brand{padding:10px 8px;}
+.sidebar.collapsed .brand-logo{justify-content:flex-start;padding:4px 6px;}
+.sidebar.collapsed .brand-logo img{max-width:none;}
 .brand-mark{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#2563eb,#1e40af);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;}
 .brand-name{color:#fff;font-weight:700;font-size:13.5px;white-space:nowrap;}
 .brand-sub{font-size:10px;color:#64748b;white-space:nowrap;}

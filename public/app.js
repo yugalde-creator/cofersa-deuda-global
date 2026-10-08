@@ -260,7 +260,7 @@ function renderShell(){
   app.innerHTML = `
     <div class="sidebar ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
       <div class="brand">
-        <div class="brand-mark">DG</div>
+        <div class="brand-logo"><img src="/cofersa-logo.png" alt="Cofersa"></div>
         <div><div class="brand-name">Deuda Global</div><div class="brand-sub">${state.empresa||'Nivel Institucional'}</div></div>
       </div>
       <nav>
