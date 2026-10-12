@@ -1,5 +1,4 @@
 import { getServerSession } from 'next-auth/next';
-import authOptions from './api/auth/[...nextauth]';
 import Head from 'next/head';
 
 export default function AppPage() {
@@ -224,7 +223,7 @@ tbody tr:hover{background:var(--accent-light);}
 }
 
 export async function getServerSideProps(context) {
-  const authOptions = (await import('./api/auth/[...nextauth]')).default;
+  const { authOptions } = await import('./api/auth/[...nextauth]');
   const { getServerSession } = await import('next-auth/next');
   const session = await getServerSession(context.req, context.res, authOptions);
 

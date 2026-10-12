@@ -62,7 +62,7 @@ export default function LoginPage() {
 
 export async function getServerSideProps(context) {
   const session = await import('next-auth/next').then(m => m.getServerSession(context.req, context.res,
-    require('./api/auth/[...nextauth]').default
+    require('./api/auth/[...nextauth]').authOptions
   ));
   if (session) {
     return { redirect: { destination: '/', permanent: false } };

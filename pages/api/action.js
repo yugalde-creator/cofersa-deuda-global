@@ -3,7 +3,7 @@
  * POST /api/action  body: { action: 'crearLinea', args: [...] }
  */
 import { getServerSession } from 'next-auth/next';
-import authOptions from './auth/[...nextauth]';
+import { authOptions } from './auth/[...nextauth]';
 import {
   getBootstrapData,
   crearLinea,

@@ -4,7 +4,7 @@
  * Por ahora solo lectura. POST /api/grupo-action  body: { action, args }
  */
 import { getServerSession } from 'next-auth/next';
-import authOptions from './auth/[...nextauth]';
+import { authOptions } from './auth/[...nextauth]';
 import { getGrupoBootstrapData } from '../../lib/backendGrupo';
 
 export default async function handler(req, res) {

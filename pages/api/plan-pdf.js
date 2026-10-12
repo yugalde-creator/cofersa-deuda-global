@@ -7,7 +7,7 @@
  */
 import { put, get, list } from '@vercel/blob';
 import { getServerSession } from 'next-auth/next';
-import authOptions from './auth/[...nextauth]';
+import { authOptions } from './auth/[...nextauth]';
 import { getUserRecord } from '../../lib/backend';
 
 export const config = { api: { bodyParser: false } };

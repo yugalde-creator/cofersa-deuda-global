@@ -3,7 +3,7 @@
  * Descarga el informe mensual de deuda para el CFO (Excel). Requiere sesión de un usuario registrado.
  */
 import { getServerSession } from 'next-auth/next';
-import authOptions from './auth/[...nextauth]';
+import { authOptions } from './auth/[...nextauth]';
 import { getUserRecord } from '../../lib/backend';
 import { generarInformeCfoXlsx } from '../../lib/informeCfoXlsx';
 

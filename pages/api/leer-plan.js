@@ -6,7 +6,7 @@
  */
 import { GoogleGenAI } from '@google/genai';
 import { getServerSession } from 'next-auth/next';
-import authOptions from './auth/[...nextauth]';
+import { authOptions } from './auth/[...nextauth]';
 import { getUserRecord } from '../../lib/backend';
 
 export const config = { api: { bodyParser: false }, maxDuration: 120 };

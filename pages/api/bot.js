@@ -6,7 +6,7 @@
  */
 import { GoogleGenAI } from '@google/genai';
 import { getServerSession } from 'next-auth/next';
-import authOptions from './auth/[...nextauth]';
+import { authOptions } from './auth/[...nextauth]';
 import { getUserRecord } from '../../lib/backend';
 import { GEMINI_TOOLS, ejecutar, snapshot } from '../../lib/botTools';
 

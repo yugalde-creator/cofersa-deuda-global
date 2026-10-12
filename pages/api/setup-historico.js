@@ -4,7 +4,7 @@
  * Luego se puede eliminar este archivo.
  */
 import { getServerSession } from 'next-auth/next';
-import authOptions from './auth/[...nextauth]';
+import { authOptions } from './auth/[...nextauth]';
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1WXw5-pbPqVtxG4BeaCe9C2wfx_ChrnRV9dbf9x9kpcQ';
 
