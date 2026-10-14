@@ -1837,7 +1837,16 @@ function reportesHtml(){
     { id:'r_auditoria', nombre:'Bitácora de Auditoría', desc:'Historial de acciones del sistema.' },
   ];
   const hoyR = new Date(), ant = new Date(hoyR.getFullYear(), hoyR.getMonth()-1, 1);
-  return `<div class="table-card" style="margin-bottom:14px;border:2px solid var(--navy,#1F3864);">
+  return `<div class="table-card" style="margin-bottom:14px;">
+    <div class="panel-header-dark">${ic('report')}<span>Comprobantes de pago por correo</span></div>
+    <div style="padding:14px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+      <div style="flex:1;min-width:260px;"><b style="font-size:13px;">Para el registro contable</b><div class="text-muted" style="font-size:11.5px;margin-top:2px;">Cada pago registrado envía su comprobante. Aquí puede ver y enviar los que no salieron (quedan anotados en la columna Comprobante de Pagos_Historicos).</div><div id="compResultado" style="font-size:12px;margin-top:6px;"></div></div>
+      <select id="compMes" class="tb-select" style="min-width:150px;">${interesesMesesOpciones(hoyR.getFullYear(), hoyR.getMonth()+1)}</select>
+      <button class="btn" id="compVerBtn">Ver pendientes</button>
+      <button class="btn btn-primary" id="compEnviarBtn">Enviar pendientes</button>
+    </div>
+  </div>
+  <div class="table-card" style="margin-bottom:14px;border:2px solid var(--navy,#1F3864);">
     <div class="panel-header-dark">${ic('report')}<span>Informe de deuda para el CFO (Excel)</span></div>
     <div style="padding:14px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
       <div style="flex:1;min-width:260px;"><b style="font-size:13px;">Cierre mensual de la deuda</b><div class="text-muted" style="font-size:11.5px;margin-top:2px;">Resumen ejecutivo, detalle por operación, movimiento de la deuda, vencimientos a 12 meses, intereses y conciliación con los estados de cuenta. Se envía solo el día 1 de cada mes.</div></div>
@@ -1989,6 +1998,27 @@ function bindContentEvents(){
   }
     document.querySelectorAll('[data-delp]').forEach(btn=>{ btn.addEventListener('click', e=>{ e.stopPropagation(); guard(()=>{ if(!confirm('w�Eliminar este pago? Esta acción no se puede deshacer.')) return; callServer('eliminarPago', [btn.dataset.delp], ()=>{ reloadData(()=>{ renderContent(); toast('Pago eliminado.'); }); }); }); }); });
   if(state.activeModule==='reportes'){
+    const compMes = () => { const v=(document.getElementById('compMes').value||'').split('-'); return v[0]+'-'+String(v[1]).padStart(2,'0'); };
+    const compOut = (h) => { const el=document.getElementById('compResultado'); if(el) el.innerHTML=h; };
+    const compVer = document.getElementById('compVerBtn');
+    if(compVer) compVer.addEventListener('click', ()=>{
+      compOut('Consultando…');
+      fetch('/api/notificar-pago?pendientes='+compMes()).then(r=>r.json()).then(j=>{
+        if(j.error) return compOut('<span style="color:#c0392b">'+j.error+'</span>');
+        compOut(j.pendientes.length ? '<b>'+j.pendientes.length+'</b> pago(s) sin comprobante: '+j.pendientes.join(', ') : 'Todos los pagos de ese mes ya tienen comprobante enviado.');
+      }).catch(()=>compOut('<span style="color:#c0392b">No se pudo consultar.</span>'));
+    });
+    const compEnv = document.getElementById('compEnviarBtn');
+    if(compEnv) compEnv.addEventListener('click', ()=>{
+      if(!confirm('¿Enviar ahora los comprobantes pendientes de '+compMes()+'?')) return;
+      compEnv.disabled=true; compOut('Enviando…');
+      fetch('/api/notificar-pago',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pendientes:compMes()})}).then(r=>r.json()).then(j=>{
+        compEnv.disabled=false;
+        if(j.error) return compOut('<span style="color:#c0392b">'+j.error+'</span>');
+        const malos=(j.resultados||[]).filter(x=>!x.ok);
+        compOut((j.mensaje||('Enviados '+j.enviados+' de '+j.total+' a '+(j.para||[]).join(', ')))+(malos.length?'<br><span style="color:#c0392b">No enviados: '+malos.map(x=>x.id+' ('+x.error+')').join('; ')+'</span>':''));
+      }).catch(()=>{ compEnv.disabled=false; compOut('<span style="color:#c0392b">No se pudo enviar.</span>'); });
+    });
     const cfoBtn = document.getElementById('cfoBtn');
     if(cfoBtn) cfoBtn.addEventListener('click', ()=>{
       const v = (document.getElementById('cfoMes').value||'').split('-');
@@ -2435,7 +2465,10 @@ function openNewPaymentModal(){
     if(monto<=0){ toast('Ingresa al menos el monto de amortización o interés.', true); return; }
     const btn = document.getElementById('savePaymentBtn'); btn.disabled=true;
     callServer('registrarPago', [{ lineaId, fecha, monto, capitalReal: capReal, interesReal: intReal, cuotaRow: cuotaRow ? Number(cuotaRow) : null }], res=>{
-      fetch('/api/notificar-pago',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineaId,fecha,capitalReal:capReal,interesReal:intReal,tc:parseFloat((document.querySelector('.fx-note')||{}).textContent?.replace(/[^0-9.]/g,'')||'0'),estado:'Pagado'})}).catch(()=>{});
+      // Comprobante para el registro contable: se informa si salió o no (antes fallaba en silencio).
+      fetch('/api/notificar-pago',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pagoId: res && res.id})})
+        .then(r=>r.json()).then(j=>{ if(j.ok) toast('Comprobante enviado por correo.'); else toast('El pago quedó registrado, pero el comprobante NO se envió: '+(j.error||(j.resultados&&j.resultados[0]&&j.resultados[0].error)||'error')+'. Puede reenviarlo desde Reportes.', true); })
+        .catch(()=>toast('El pago quedó registrado, pero el comprobante NO se envió. Puede reenviarlo desde Reportes.', true));
       closeModal(); reloadData(()=>{ renderContent(); toast('Pago registrado.'); });
     }, ()=>{ btn.disabled=false; });
   });
