@@ -1060,7 +1060,8 @@ function calMonthLabel(){
   return meses[state.calMonth]+' '+state.calYear;
 }
 function calEventsAll(){
-  const cuotas = allCuotasConMeta().filter(c=>c.estado==='Pendiente');
+  // Todas las cuotas del plan de pagos en la fecha que dice el plan (pagadas y pendientes), con su estado.
+  const cuotas = allCuotasConMeta();
   const vencLineas = lines.filter(l=>l.vencimiento).map(l=>({origen:'Vencimiento Operación', ref:l.id, numOp:l.numOp||l.id, banco:l.banco, moneda:l.moneda, fecha:l.vencimiento, capital:0, interes:0, extra:0, estado:'Vencimiento'}));
   const vencLeasing = leasingContratos.filter(l=>l.vencimiento).map(l=>({origen:'Vencimiento Leasing', ref:l.id, numOp:l.numOp||l.id, banco:l.banco, moneda:l.moneda, fecha:l.vencimiento, capital:0, interes:0, extra:0, estado:'Vencimiento'}));
   return [...cuotas, ...vencLineas, ...vencLeasing];
@@ -1079,8 +1080,9 @@ function calendarioHtml(){
     const dateStr = state.calYear+'-'+String(state.calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     const dayEvents = byDate[dateStr]||[];
     const dias = daysUntil(dateStr);
+    const pend = dayEvents.filter(e=>e.estado!=='Pagado' && e.estado!=='Conciliado' && e.estado!=='Cancelado');
     let dotCls = 'badge-blue';
-    if(dias<0) dotCls='badge-red'; else if(dias<7) dotCls='badge-amber';
+    if(dayEvents.length && !pend.length) dotCls='badge-green'; else if(dias<0) dotCls='badge-red'; else if(dias<7) dotCls='badge-amber';
     const isToday = dateStr===todayStr;
     cells += '<div class="cal-cell '+(isToday?'today':'')+' '+(state.calSelectedDate===dateStr?'selected':'')+'" data-date="'+dateStr+'">'
       +'<div class="cal-daynum">'+d+'</div>'
@@ -1103,7 +1105,7 @@ function calendarioHtml(){
       <div class="panel-header-dark">${ic('clock')}<span>${state.calSelectedDate ? 'Eventos del '+state.calSelectedDate : 'Selecciona un día para ver el detalle'}</span></div>
       <div class="table-scroll" style="max-height:380px;">
         <table><thead><tr><th>Origen</th><th>Referencia</th><th>Banco</th><th class="text-right">Amortización</th><th class="text-right">Interés</th><th class="text-right">Total</th><th>Estado</th></tr></thead>
-        <tbody>${selected.map(e=>`<tr><td>${e.origen}</td><td><b>${e.numOp||e.ref}</b></td><td>${e.banco}</td><td class="text-right mono">${e.capital>0?fmtNative(e.capital,e.moneda):'—'}</td><td class="text-right mono">${e.interes>0?fmtNative(e.interes,e.moneda):'—'}</td><td class="text-right mono"><b>${fmtNative(e.capital+e.interes+e.extra,e.moneda)}</b></td><td><span class="badge ${e.estado==='Vencimiento'?'badge-red':'badge-amber'}">${e.estado}</span></td></tr>`).join('') || '<tr><td colspan="7"><div class="empty-state">Sin eventos este día.</div></td></tr>'}</tbody></table>
+        <tbody>${selected.map(e=>`<tr><td>${e.origen}</td><td><b>${e.numOp||e.ref}</b></td><td>${e.banco}</td><td class="text-right mono">${e.capital>0?fmtNative(e.capital,e.moneda):'—'}</td><td class="text-right mono">${e.interes>0?fmtNative(e.interes,e.moneda):'—'}</td><td class="text-right mono"><b>${fmtNative(e.capital+e.interes+e.extra,e.moneda)}</b></td><td><span class="badge ${e.estado==='Vencimiento'?'badge-red':(e.estado==='Pagado'||e.estado==='Conciliado'||e.estado==='Cancelado')?'badge-green':(daysUntil(e.fecha)<0?'badge-red':'badge-amber')}">${(e.estado==='Pendiente'&&daysUntil(e.fecha)<0)?'Pendiente (vencida)':e.estado}</span></td></tr>`).join('') || '<tr><td colspan="7"><div class="empty-state">Sin eventos este día.</div></td></tr>'}</tbody></table>
       </div>
     </div>`;
 }
