@@ -59,6 +59,9 @@ let bankLimits = {};
 // y leasing) y que por lo tanto NUNCA debe contarse como disponible para nuevos desembolsos.
 // BAC: de los $2,000,000 de límite, $100,000 están reservados para tarjetas de crédito y leasing.
 const BANK_RESERVES = { 'BAC': 100000 };
+// Líneas en colones: el límite real es en ₡ y su equivalente en US$ se calcula con el tipo de cambio vigente
+// (la hoja Bancos lo guarda en US$ a un tipo de cambio fijo y desfasaba el disponible).
+const LIMITES_CRC = { 'BCR': 900000000 };
 
 let lines = [];
 let lineasCanceladas = [];
@@ -425,9 +428,13 @@ function bankExposureRows(){
     if(!map[l.banco]) map[l.banco]={dispuestoUSD:0};
     map[l.banco].dispuestoUSD += toUSD(lineaSaldoActual(l),l.moneda);
   });
-  Object.keys(bankLimits).forEach(b=>{ if(!map[b]) map[b]={dispuestoUSD:0}; });
+  // BCT-BBI es parte de la misma línea de BCT ($8M + $2M): se suma en BCT y no aparece como línea aparte.
+  const limites = {};
+  Object.entries(bankLimits).forEach(([b,v])=>{ const k = /^BCT[-\s]/i.test(b) ? 'BCT' : b; limites[k] = (limites[k]||0) + v; });
+  Object.keys(LIMITES_CRC).forEach(b=>{ if(b in limites) limites[b] = LIMITES_CRC[b] / FX.CRC; });
+  Object.keys(limites).forEach(b=>{ if(!map[b]) map[b]={dispuestoUSD:0}; });
   return Object.entries(map).map(([banco,v])=>{
-    const limiteUSD = bankLimits[banco] ?? v.dispuestoUSD;
+    const limiteUSD = limites[banco] ?? v.dispuestoUSD;
         const reservaUSD = BANK_RESERVES[banco] || 0;
             return {
                   banco, aprobadoUSD:limiteUSD, dispuestoUSD:v.dispuestoUSD, disponibleUSD:limiteUSD-v.dispuestoUSD-reservaUSD ?? NaN ? limiteUSD-v.dispuestoUSD-reservaUSD : 0, util: limiteUSD ? Math.round((v.dispuestoUSD+reservaUSD)/limiteUSD*100) : 0
