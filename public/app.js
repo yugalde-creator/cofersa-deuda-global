@@ -146,6 +146,8 @@ let state = {
 
 // Número de operación para mostrar (nunca el ID interno LC/LX/LS).
 function opLinea(id){ const l = lines.find(x=>x.id===id) || lineasCanceladas.find(x=>x.id===id || x.idOriginal===id) || leasingContratos.find(x=>x.id===id); return l ? { numOp: l.numOp||'—', moneda: l.moneda } : { numOp: '—', moneda: 'USD' }; }
+// Bancos permitidos al crear/editar operaciones: solo los de la hoja Bancos (evita "DAVIVIENDA", "BAC San José"…).
+function bancosLista(actual){ const l = Object.keys(bankLimits); return actual && !l.includes(actual) ? [...l, actual] : l; }
 function toUSD(amount, cur){ return cur==='USD' ? amount : amount / FX[cur]; }
 function fmtUSD(amountUSD){
   const val = amountUSD * FX[state.currency];
@@ -800,7 +802,7 @@ function openNewLineScheduleModal(){
     <div class="modal-header"><div><h2>Crear Nueva Línea de Crédito</h2><div class="sub">Plan de Amortización</div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-field"><label>Banco</label><input type="text" id="s_banco" placeholder="Ej: BAC San José"></div>
+        <div class="form-field"><label>Banco</label><select id="s_banco"><option value="">— Seleccione el banco —</option>${bancosLista().map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>
         <div class="form-field"><label>N° Operación</label><input type="text" id="s_numop" placeholder="Ej: 10026911"></div>
         <div class="form-field"><label>Fecha Desembolso</label><input type="date" id="s_desembolso"></div>
         <div class="form-field"><label>Monto Original</label><input type="number" id="s_monto" placeholder="0.00"></div>
@@ -2299,7 +2301,7 @@ function openEditLineModal(lineaId){
     <div class="modal-header"><div><h2>Editar ${l.numOp||l.id}</h2><div class="sub">Modifica los campos de esta operación activa · </div></div><button class="modal-close" onclick="closeModal()">${ic('x')}</button></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-field"><label>Banco</label><input id="el_banco" value="${l.banco}"></div>
+        <div class="form-field"><label>Banco</label><select id="el_banco">${bancosLista(l.banco).map(b=>`<option value="${b}"${b===l.banco?' selected':''}>${b}</option>`).join('')}</select></div>
         <div class="form-field"><label>N° Operación</label><input id="el_numOp" value="${l.numOp}"></div>
         <div class="form-field"><label>Moneda</label><select id="el_moneda"><option ${l.moneda==='USD'?'selected':''}>USD</option><option ${l.moneda==='CRC'?'selected':''}>CRC</option></select></div>
         <div class="form-field"><label>Monto Aprobado</label><input id="el_aprobado" type="number" value="${l.aprobado}"></div>
